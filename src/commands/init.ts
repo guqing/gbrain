@@ -53,7 +53,6 @@ export default defineCommand({
     console.log(`  gbrain search "your query"          # search the brain`);
     console.log(`  gbrain setup-mcp                    # connect to Claude Code`);
     console.log("");
-    console.log(`  Set GBRAIN_DB=${dbPath} to use this brain from any directory.`);
     console.log(`  Configure embeddings: gbrain config set embed.base_url <url>`);
     console.log(`  Config file: ${getConfigPath()}`);
   },

@@ -1,6 +1,7 @@
 import { Database } from "bun:sqlite";
 import { existsSync } from "fs";
 import { join } from "path";
+import { homedir } from "os";
 
 export const SCHEMA = `
 PRAGMA journal_mode = WAL;
@@ -161,7 +162,8 @@ INSERT OR IGNORE INTO config (key, value) VALUES
 export function resolveDbPath(flagPath?: string): string {
   if (flagPath) return flagPath;
   if (process.env["GBRAIN_DB"]) return process.env["GBRAIN_DB"];
-  return join(process.cwd(), "brain.db");
+  // Default: ~/.gbrain/brain.db (same dir as config.toml)
+  return join(homedir(), ".gbrain", "brain.db");
 }
 
 export function migrateDb(db: Database): void {

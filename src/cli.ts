@@ -6,7 +6,8 @@ import { VERSION } from "./version.ts";
 // Per-command help strings — machine-readable for agents.
 // Run: gbrain <command> --help
 export const COMMAND_HELP: Record<string, string> = {
-  config:      "Usage: gbrain config [list | get <key> | set <key> <value>]\n\nView and set gbrain configuration (embed provider, DB path, etc.).",
+  init:      "Usage: gbrain init [--db <path>]\n\nInitialise a new brain database (default: ~/.gbrain/brain.db).",
+  config:    "Usage: gbrain config [list | get <key> | set <key> <value>]\n\nView and set gbrain configuration (embed provider, DB path, etc.).",
   get:       "Usage: gbrain get <slug>\n\nRead a page by slug.",
   put:       "Usage: gbrain put <slug> [< file.md]\n\nWrite or update a page from stdin.",
   delete:    "Usage: gbrain delete <slug>\n\nDelete a page (prompts for confirmation).",

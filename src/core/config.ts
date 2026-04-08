@@ -40,7 +40,9 @@ export function getConfigPath(): string {
 // ── Defaults ──────────────────────────────────────────────────────────────────
 
 const DEFAULTS: GbrainConfig = {
-  db: {},
+  db: {
+    path: join(homedir(), ".gbrain", "brain.db"),
+  },
   embed: {
     model: "text-embedding-3-small",
     dimensions: 1536,
