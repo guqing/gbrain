@@ -1,0 +1,30 @@
+{
+  "name": "gbrain",
+  "version": "0.1.0",
+  "description": "Personal knowledge brain — CLI + MCP server. SQLite + FTS5 + vector search.",
+  "type": "module",
+  "bin": {
+    "gbrain": "./bin/gbrain.ts"
+  },
+  "scripts": {
+    "dev": "bun run src/cli.ts",
+    "build": "bun build --compile --minify src/cli.ts --outfile bin/gbrain",
+    "test": "bun test"
+  },
+  "files": [
+    "bin/gbrain",
+    "src/"
+  ],
+  "keywords": ["knowledge-base", "mcp", "sqlite", "cli", "rag"],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "citty": "^0.2.2",
+    "gray-matter": "^4.0.3",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5"
+  }
+}
