@@ -5,7 +5,7 @@ import { startMcpServer } from "../mcp/server.ts";
 export default defineCommand({
   meta: { name: "serve", description: "Start the MCP stdio server" },
   args: {
-    db: { type: "option", description: "Path to brain.db" },
+    db: { type: "string", description: "Path to brain.db" },
   },
   async run({ args }) {
     const dbPath = resolveDbPath(args.db);

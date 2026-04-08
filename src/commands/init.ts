@@ -15,7 +15,7 @@ export default defineCommand({
       required: false,
     },
     db: {
-      type: "option",
+      type: "string",
       description: "Explicit path to brain.db",
     },
   },

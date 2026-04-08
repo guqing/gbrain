@@ -52,6 +52,7 @@ export function serializePage(page: Pick<Page, "title" | "type" | "compiled_trut
 export function rowToPage(row: PageRow): Page {
   return {
     ...row,
+    content_hash: row.content_hash ?? undefined,
     frontmatter: JSON.parse(row.frontmatter) as PageFrontmatter,
   };
 }

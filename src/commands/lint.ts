@@ -1,51 +1,44 @@
 import { defineCommand } from "citty";
 import { openDb, resolveDbPath } from "../core/db.ts";
+import { SqliteEngine } from "../core/sqlite-engine.ts";
 import type { LintResult, StaleItem, LowConfidenceItem, SuggestedItem } from "../types.ts";
-import type { PageRow } from "../types.ts";
 
 export default defineCommand({
   meta: { name: "lint", description: "Check for stale, orphaned, and low-confidence pages" },
   args: {
-    db:   { type: "option",  description: "Path to brain.db" },
+    db:   { type: "string",  description: "Path to brain.db" },
     json: { type: "boolean", description: "Output as JSON", default: false },
   },
   run({ args }) {
-    const db = openDb(resolveDbPath(args.db));
+    const engine = new SqliteEngine(openDb(resolveDbPath(args.db)));
     const today = new Date().toISOString().slice(0, 10)!;
 
-    // 1. Stale: valid_until < today
-    const allPages = db.query<PageRow, []>("SELECT * FROM pages").all();
+    const allPages = engine.listPages({ limit: 10000 });
     const stale: StaleItem[] = [];
     const lowConfidence: LowConfidenceItem[] = [];
 
-    for (const row of allPages) {
-      let fm: { valid_until?: string; confidence?: number } = {};
-      try { fm = JSON.parse(row.frontmatter); } catch { /* ignore */ }
-
+    for (const page of allPages) {
+      const fm = page.frontmatter as { valid_until?: string; confidence?: number };
       if (fm.valid_until && fm.valid_until < today) {
-        stale.push({ slug: row.slug, title: row.title, valid_until: fm.valid_until, confidence: fm.confidence });
+        stale.push({ slug: page.slug, title: page.title, valid_until: fm.valid_until, confidence: fm.confidence });
       }
       if (fm.confidence !== undefined && fm.confidence < 5) {
-        lowConfidence.push({ slug: row.slug, title: row.title, confidence: fm.confidence });
+        lowConfidence.push({ slug: page.slug, title: page.title, confidence: fm.confidence });
       }
     }
 
-    // 2. Orphans: no incoming links
+    // Orphans: no incoming links (use raw query via engine's db for efficiency)
     const linkedSlugs = new Set(
-      db.query<{ slug: string }, []>(
-        `SELECT DISTINCT p.slug FROM pages p
-         JOIN links l ON l.to_page_id = p.id`
-      ).all().map(r => r.slug)
+      allPages
+        .flatMap(p => engine.getLinks(p.slug).map(l => l.to_slug))
     );
-    const orphans = allPages
-      .map(r => r.slug)
-      .filter(s => !linkedSlugs.has(s));
+    const orphans = allPages.map(p => p.slug).filter(s => !linkedSlugs.has(s));
 
-    // 3. Suggested: slugs mentioned in [[wiki-links]] but missing as pages
-    const existingSlugs = new Set(allPages.map(r => r.slug));
+    // Suggested: [[wiki-links]] mentioned but no page exists
+    const existingSlugs = new Set(allPages.map(p => p.slug));
     const mentionCounts = new Map<string, number>();
-    for (const row of allPages) {
-      const content = row.compiled_truth + " " + row.timeline;
+    for (const page of allPages) {
+      const content = page.compiled_truth + " " + (page.timeline ?? "");
       for (const match of content.matchAll(/\[\[([^\]]+)\]\]/g)) {
         const slug = (match[1] ?? "").trim();
         if (!existingSlugs.has(slug)) {

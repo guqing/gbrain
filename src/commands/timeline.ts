@@ -6,10 +6,10 @@ export default defineCommand({
   meta: { name: "timeline", description: "View or add timeline entries for a page" },
   args: {
     slug: { type: "positional", description: "Page slug", required: true },
-    db: { type: "option", description: "Path to brain.db" },
+    db: { type: "string", description: "Path to brain.db" },
     add: { type: "boolean", description: "Add a new entry (reads from stdin)", default: false },
-    date: { type: "option", description: "Entry date (YYYY-MM-DD)" },
-    summary: { type: "option", description: "Entry summary" },
+    date: { type: "string", description: "Entry date (YYYY-MM-DD)" },
+    summary: { type: "string", description: "Entry summary" },
     json: { type: "boolean", description: "Output as JSON", default: false },
   },
   run({ args }) {

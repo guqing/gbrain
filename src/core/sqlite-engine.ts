@@ -11,6 +11,7 @@ import type {
   IngestLogEntry, IngestLogInput,
 } from "../types.ts";
 import { ftsSearch } from "./fts.ts";
+import { migrateDb } from "./db.ts";
 
 function cosineSimilarity(a: Float32Array, b: Float32Array): number {
   let dot = 0, normA = 0, normB = 0;
@@ -26,6 +27,7 @@ function cosineSimilarity(a: Float32Array, b: Float32Array): number {
 function rowToPage(row: PageRow): Page {
   return {
     ...row,
+    content_hash: row.content_hash ?? undefined,
     frontmatter: JSON.parse(row.frontmatter),
   };
 }
@@ -38,7 +40,7 @@ export class SqliteEngine implements BrainEngine {
   }
 
   initSchema(): void {
-    // Schema is created by createDb/openDb
+    migrateDb(this.db);
   }
 
   // ── Pages ─────────────────────────────────────────────────────────────────

@@ -1,17 +1,17 @@
 import { defineCommand } from "citty";
 import { openDb, resolveDbPath } from "../core/db.ts";
-import { getBacklinks } from "../core/links.ts";
+import { SqliteEngine } from "../core/sqlite-engine.ts";
 
 export default defineCommand({
   meta: { name: "backlinks", description: "Show pages linking TO a slug" },
   args: {
     slug: { type: "positional", description: "Target slug", required: true },
-    db:   { type: "option", description: "Path to brain.db" },
+    db:   { type: "string", description: "Path to brain.db" },
     json: { type: "boolean", description: "Output as JSON", default: false },
   },
   run({ args }) {
-    const db = openDb(resolveDbPath(args.db));
-    const links = getBacklinks(db, args.slug);
+    const engine = new SqliteEngine(openDb(resolveDbPath(args.db)));
+    const links = engine.getBacklinks(args.slug);
 
     if (args.json) { console.log(JSON.stringify(links, null, 2)); return; }
 
@@ -21,7 +21,7 @@ export default defineCommand({
     }
     console.log(`Backlinks to ${args.slug}:`);
     for (const l of links) {
-      console.log(`  ${l.slug}${l.context ? `  — ${l.context}` : ""}`);
+      console.log(`  ${l.from_slug}${l.context ? `  — ${l.context}` : ""}`);
     }
   },
 });

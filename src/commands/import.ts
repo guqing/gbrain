@@ -9,8 +9,8 @@ export default defineCommand({
   meta: { name: "import", description: "Import a markdown file into the brain" },
   args: {
     file: { type: "positional", description: "Path to markdown file", required: true },
-    slug: { type: "option", description: "Override slug (default: derived from filename)" },
-    db: { type: "option", description: "Path to brain.db" },
+    slug: { type: "string", description: "Override slug (default: derived from filename)" },
+    db: { type: "string", description: "Path to brain.db" },
     "no-embed": { type: "boolean", description: "Skip embedding generation", default: false },
     json: { type: "boolean", description: "Output as JSON", default: false },
   },

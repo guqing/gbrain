@@ -5,11 +5,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { Database } from "bun:sqlite";
-import { ftsSearch } from "../core/fts.ts";
-import { rowToPage, serializePage, parsePage, frontmatterToJson } from "../core/markdown.ts";
-import { createLink, getBacklinks, removeLink } from "../core/links.ts";
-import { keywordSearch } from "../core/search/keyword.ts";
-import type { PageRow, BrainStats } from "../types.ts";
+import { serializePage, parsePage } from "../core/markdown.ts";
 import { statSync } from "fs";
 import { SqliteEngine } from "../core/sqlite-engine.ts";
 
@@ -216,7 +212,7 @@ export function createMcpServer(db: Database, dbPath: string): Server {
     try {
       // --- brain_search ---
       if (name === "brain_search") {
-        const results = ftsSearch(db, input["query"] as string, {
+        const results = engine.searchKeyword(input["query"] as string, {
           type: input["type"] as string | undefined,
           limit: (input["limit"] as number | undefined) ?? 10,
         });
@@ -225,19 +221,17 @@ export function createMcpServer(db: Database, dbPath: string): Server {
 
       // --- brain_keyword_search ---
       if (name === "brain_keyword_search") {
-        const results = keywordSearch(engine, input["query"] as string, { limit: (input["limit"] as number | undefined) ?? 10 });
+        const results = engine.searchKeyword(input["query"] as string, { limit: (input["limit"] as number | undefined) ?? 10 });
         return { content: [{ type: "text", text: JSON.stringify(results, null, 2) }] };
       }
 
       // --- brain_get ---
       if (name === "brain_get") {
-        const row = db
-          .query<PageRow, [string]>("SELECT * FROM pages WHERE slug = ? LIMIT 1")
-          .get(input["slug"] as string);
-        if (!row) {
+        const page = engine.getPage(input["slug"] as string);
+        if (!page) {
           return { content: [{ type: "text", text: `Page not found: ${input["slug"]}` }], isError: true };
         }
-        return { content: [{ type: "text", text: serializePage(rowToPage(row)) }] };
+        return { content: [{ type: "text", text: serializePage(page) }] };
       }
 
       // --- brain_put ---
@@ -245,149 +239,111 @@ export function createMcpServer(db: Database, dbPath: string): Server {
         const slug = input["slug"] as string;
         const content = input["content"] as string;
         const parsed = parsePage(content, slug);
-        const existing = db
-          .query<{ id: number; compiled_truth: string; timeline: string; frontmatter: string }, [string]>(
-            "SELECT id, compiled_truth, timeline, frontmatter FROM pages WHERE slug = ? LIMIT 1"
-          )
-          .get(slug);
+        const isUpdate = !!engine.getPage(slug);
 
-        if (existing) {
-          // Save version
-          db.prepare(
-            "INSERT INTO page_versions (page_id, compiled_truth, frontmatter) VALUES (?,?,?)"
-          ).run(existing.id, existing.compiled_truth, existing.frontmatter);
-
-          db.run(
-            `UPDATE pages SET type=?,title=?,compiled_truth=?,timeline=?,frontmatter=?,updated_at=strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE slug=?`,
-            [parsed.type, parsed.title, parsed.compiled_truth, parsed.timeline, frontmatterToJson(parsed.frontmatter), slug]
-          );
-          return { content: [{ type: "text", text: `Updated: ${slug}` }] };
-        } else {
-          db.run(
-            "INSERT INTO pages (slug,type,title,compiled_truth,timeline,frontmatter) VALUES (?,?,?,?,?,?)",
-            [slug, parsed.type, parsed.title, parsed.compiled_truth, parsed.timeline, frontmatterToJson(parsed.frontmatter)]
-          );
-          return { content: [{ type: "text", text: `Created: ${slug}` }] };
+        if (isUpdate) {
+          engine.createVersion(slug);
         }
+        engine.putPage(slug, {
+          type: parsed.type,
+          title: parsed.title,
+          compiled_truth: parsed.compiled_truth,
+          timeline: parsed.timeline,
+          frontmatter: parsed.frontmatter,
+        });
+        return { content: [{ type: "text", text: `${isUpdate ? "Updated" : "Created"}: ${slug}` }] };
       }
 
       // --- brain_delete ---
       if (name === "brain_delete") {
         const slug = input["slug"] as string;
-        const row = db
-          .query<{ id: number }, [string]>("SELECT id FROM pages WHERE slug = ?")
-          .get(slug);
-        if (!row) {
+        if (!engine.getPage(slug)) {
           return { content: [{ type: "text", text: `Page not found: ${slug}` }], isError: true };
         }
-        db.prepare("DELETE FROM pages WHERE id = ?").run(row.id);
+        engine.deletePage(slug);
         return { content: [{ type: "text", text: `Deleted: ${slug}` }] };
       }
 
       // --- brain_list ---
       if (name === "brain_list") {
-        const limit = (input["limit"] as number | undefined) ?? 20;
-        let rows: PageRow[];
-        if (input["tag"]) {
-          rows = db
-            .query<PageRow, [string]>(
-              `SELECT p.* FROM pages p JOIN tags t ON t.page_id=p.id WHERE t.tag=? ${
-                input["type"] ? `AND p.type='${input["type"]}'` : ""
-              } ORDER BY p.updated_at DESC LIMIT ${limit}`
-            )
-            .all(input["tag"] as string);
-        } else if (input["type"]) {
-          rows = db
-            .query<PageRow, [string]>(
-              `SELECT * FROM pages WHERE type=? ORDER BY updated_at DESC LIMIT ${limit}`
-            )
-            .all(input["type"] as string);
-        } else {
-          rows = db
-            .query<PageRow, []>(`SELECT * FROM pages ORDER BY updated_at DESC LIMIT ${limit}`)
-            .all();
-        }
-        const summary = rows.map((r) => ({
-          slug: r.slug,
-          type: r.type,
-          title: r.title,
-          updated_at: r.updated_at,
-        }));
+        const pages = engine.listPages({
+          type: input["type"] as string | undefined,
+          tag: input["tag"] as string | undefined,
+          limit: (input["limit"] as number | undefined) ?? 20,
+        });
+        const summary = pages.map((p) => ({ slug: p.slug, type: p.type, title: p.title, updated_at: p.updated_at }));
         return { content: [{ type: "text", text: JSON.stringify(summary, null, 2) }] };
       }
 
       // --- brain_link ---
       if (name === "brain_link") {
-        const result = createLink(
-          db,
-          input["from"] as string,
-          input["to"] as string,
-          (input["context"] as string) ?? ""
-        );
-        return {
-          content: [{ type: "text", text: result.ok ? `Linked: ${input["from"]} → ${input["to"]}` : (result.error ?? "Error") }],
-          isError: !result.ok,
-        };
+        try {
+          engine.addLink(input["from"] as string, input["to"] as string, (input["context"] as string) ?? "");
+          return { content: [{ type: "text", text: `Linked: ${input["from"]} -> ${input["to"]}` }] };
+        } catch (e) {
+          return { content: [{ type: "text", text: String(e) }], isError: true };
+        }
       }
 
       // --- brain_unlink ---
       if (name === "brain_unlink") {
-        const ok = removeLink(db, input["from"] as string, input["to"] as string);
-        return {
-          content: [{ type: "text", text: ok ? `Unlinked: ${input["from"]} ↛ ${input["to"]}` : "Link not found" }],
-          isError: !ok,
-        };
+        try {
+          engine.removeLink(input["from"] as string, input["to"] as string);
+          return { content: [{ type: "text", text: `Unlinked: ${input["from"]} !-> ${input["to"]}` }] };
+        } catch {
+          return { content: [{ type: "text", text: "Link not found" }], isError: true };
+        }
       }
 
       // --- brain_backlinks ---
       if (name === "brain_backlinks") {
-        const links = getBacklinks(db, input["slug"] as string);
+        const links = engine.getBacklinks(input["slug"] as string);
         return { content: [{ type: "text", text: JSON.stringify(links, null, 2) }] };
       }
 
       // --- brain_tag ---
       if (name === "brain_tag") {
-        const page = db.query<{ id: number }, [string]>("SELECT id FROM pages WHERE slug = ?").get(input["slug"] as string);
-        if (!page) return { content: [{ type: "text", text: `Page not found: ${input["slug"]}` }], isError: true };
-        db.prepare("INSERT OR IGNORE INTO tags (page_id, tag) VALUES (?, ?)").run(page.id, input["tag"] as string);
+        if (!engine.getPage(input["slug"] as string)) {
+          return { content: [{ type: "text", text: `Page not found: ${input["slug"]}` }], isError: true };
+        }
+        engine.addTag(input["slug"] as string, input["tag"] as string);
         return { content: [{ type: "text", text: `Tagged ${input["slug"]} with #${input["tag"]}` }] };
       }
 
       // --- brain_untag ---
       if (name === "brain_untag") {
-        const page = db.query<{ id: number }, [string]>("SELECT id FROM pages WHERE slug = ?").get(input["slug"] as string);
-        if (!page) return { content: [{ type: "text", text: `Page not found: ${input["slug"]}` }], isError: true };
-        db.prepare("DELETE FROM tags WHERE page_id = ? AND tag = ?").run(page.id, input["tag"] as string);
+        if (!engine.getPage(input["slug"] as string)) {
+          return { content: [{ type: "text", text: `Page not found: ${input["slug"]}` }], isError: true };
+        }
+        engine.removeTag(input["slug"] as string, input["tag"] as string);
         return { content: [{ type: "text", text: `Removed tag #${input["tag"]} from ${input["slug"]}` }] };
       }
 
       // --- brain_tags ---
       if (name === "brain_tags") {
         if (input["slug"]) {
-          const page = db.query<{ id: number }, [string]>("SELECT id FROM pages WHERE slug = ?").get(input["slug"] as string);
-          if (!page) return { content: [{ type: "text", text: `Page not found: ${input["slug"]}` }], isError: true };
-          const tags = db.query<{ tag: string }, [number]>("SELECT tag FROM tags WHERE page_id = ? ORDER BY tag").all(page.id);
-          return { content: [{ type: "text", text: tags.map((t) => t.tag).join(", ") || "(no tags)" }] };
+          if (!engine.getPage(input["slug"] as string)) {
+            return { content: [{ type: "text", text: `Page not found: ${input["slug"]}` }], isError: true };
+          }
+          const tags = engine.getTags(input["slug"] as string);
+          return { content: [{ type: "text", text: tags.join(", ") || "(no tags)" }] };
         }
-        const all = db.query<{ tag: string; n: number }, []>("SELECT tag, COUNT(*) as n FROM tags GROUP BY tag ORDER BY n DESC LIMIT 50").all();
-        return { content: [{ type: "text", text: JSON.stringify(all, null, 2) }] };
+        // Global tag stats
+        const stats = engine.getStats();
+        const tagStats = { total_tags: stats.totalTags, by_type: stats.byType };
+        return { content: [{ type: "text", text: JSON.stringify(tagStats, null, 2) }] };
       }
 
       // --- brain_timeline ---
       if (name === "brain_timeline") {
         const slug = input["slug"] as string;
         const limit = (input["limit"] as number | undefined) ?? 20;
-        const page = db.query<{ id: number; title: string; timeline: string }, [string]>(
-          "SELECT id, title, timeline FROM pages WHERE slug = ?"
-        ).get(slug);
-        if (!page) return { content: [{ type: "text", text: `Page not found: ${slug}` }], isError: true };
-
-        const entries = db.query<{ entry_date: string; source: string; summary: string; detail: string }, [number, number]>(
-          "SELECT entry_date, source, summary, detail FROM timeline_entries WHERE page_id = ? ORDER BY entry_date DESC LIMIT ?"
-        ).all(page.id, limit);
-
+        if (!engine.getPage(slug)) {
+          return { content: [{ type: "text", text: `Page not found: ${slug}` }], isError: true };
+        }
+        const entries = engine.getTimeline(slug, { limit });
         if (entries.length > 0) {
-          const text = entries.map((e) => `**${e.entry_date}**${e.source ? ` [${e.source}]` : ""}\n${e.summary}${e.detail ? '\n' + e.detail : ''}`).join("\n\n");
+          const text = entries.map((e) => `**${e.entry_date}**${e.source ? ` [${e.source}]` : ""}\n${e.summary}${e.detail ? "\n" + e.detail : ""}`).join("\n\n");
           return { content: [{ type: "text", text }] };
         }
         return { content: [{ type: "text", text: "(no timeline entries)" }] };
@@ -397,15 +353,11 @@ export function createMcpServer(db: Database, dbPath: string): Server {
       if (name === "brain_versions") {
         const slug = input["slug"] as string;
         const limit = (input["limit"] as number | undefined) ?? 5;
-        const page = db.query<{ id: number; title: string }, [string]>("SELECT id, title FROM pages WHERE slug = ?").get(slug);
-        if (!page) return { content: [{ type: "text", text: `Page not found: ${slug}` }], isError: true };
-
-        const versions = db.query<{ id: number; snapshot_at: string }, [number, number]>(
-          "SELECT id, snapshot_at FROM page_versions WHERE page_id = ? ORDER BY snapshot_at DESC LIMIT ?"
-        ).all(page.id, limit);
-
+        if (!engine.getPage(slug)) {
+          return { content: [{ type: "text", text: `Page not found: ${slug}` }], isError: true };
+        }
+        const versions = engine.getVersions(slug).slice(0, limit);
         if (versions.length === 0) return { content: [{ type: "text", text: "No versions saved yet." }] };
-
         const list = versions.map((v, i) => `${i + 1}. ${v.snapshot_at}`).join("\n");
         return { content: [{ type: "text", text: `Versions for ${slug}:\n${list}` }] };
       }
@@ -414,78 +366,29 @@ export function createMcpServer(db: Database, dbPath: string): Server {
       if (name === "brain_graph") {
         const startSlug = input["slug"] as string | undefined;
         const maxDepth = (input["depth"] as number | undefined) ?? 2;
-
-        const allLinks = db.query<{ from_slug: string; to_slug: string }, []>(
-          `SELECT fp.slug as from_slug, tp.slug as to_slug
-           FROM links l
-           JOIN pages fp ON fp.id = l.from_page_id
-           JOIN pages tp ON tp.id = l.to_page_id`
-        ).all();
-
-        const linksFrom = new Map<string, string[]>();
-        const linksTo = new Map<string, string[]>();
-        for (const l of allLinks) {
-          if (!linksFrom.has(l.from_slug)) linksFrom.set(l.from_slug, []);
-          if (!linksTo.has(l.to_slug)) linksTo.set(l.to_slug, []);
-          linksFrom.get(l.from_slug)!.push(l.to_slug);
-          linksTo.get(l.to_slug)!.push(l.from_slug);
-        }
-
-        let slugs: string[];
-        if (startSlug) {
-          const visited = new Set<string>([startSlug]);
-          const queue: Array<{ slug: string; depth: number }> = [{ slug: startSlug, depth: 0 }];
-          while (queue.length > 0) {
-            const { slug, depth } = queue.shift()!;
-            if (depth >= maxDepth) continue;
-            for (const n of [...(linksFrom.get(slug) ?? []), ...(linksTo.get(slug) ?? [])]) {
-              if (!visited.has(n)) { visited.add(n); queue.push({ slug: n, depth: depth + 1 }); }
-            }
-          }
-          slugs = Array.from(visited);
-        } else {
-          slugs = db.query<{ slug: string }, []>("SELECT slug FROM pages ORDER BY slug").all().map((r) => r.slug);
-        }
-
-        const pages = db.query<{ slug: string; type: string; title: string }, []>("SELECT slug, type, title FROM pages").all();
-        const pageMap = new Map(pages.map((p) => [p.slug, p]));
-
-        const nodes = slugs.map((slug) => {
-          const meta = pageMap.get(slug);
-          return { slug, type: meta?.type ?? "unknown", title: meta?.title ?? slug, links: linksFrom.get(slug) ?? [], backlinks: linksTo.get(slug) ?? [] };
-        });
-
+        const nodes = engine.traverseGraph(startSlug ?? "", maxDepth);
         return { content: [{ type: "text", text: JSON.stringify(nodes, null, 2) }] };
       }
 
       // --- brain_stats ---
       if (name === "brain_stats") {
-        const total = db.query<{ n: number }, []>("SELECT COUNT(*) as n FROM pages").get()?.n ?? 0;
-        const byType = Object.fromEntries(
-          db.query<{ type: string; n: number }, []>("SELECT type, COUNT(*) as n FROM pages GROUP BY type").all().map((r) => [r.type, r.n])
-        );
-        const links = db.query<{ n: number }, []>("SELECT COUNT(*) as n FROM links").get()?.n ?? 0;
-        const embeddings = db.query<{ n: number }, []>("SELECT COUNT(DISTINCT page_id) as n FROM page_embeddings").get()?.n ?? 0;
-        const ingestLog = db.query<{ n: number }, []>("SELECT COUNT(*) as n FROM ingest_log").get()?.n ?? 0;
-        let dbSize = 0;
-        try { dbSize = statSync(dbPath).size; } catch { /* */ }
-        const stats: BrainStats = { totalPages: total, byType, totalLinks: links, totalTags: 0, totalEmbeddings: embeddings, totalIngestLog: ingestLog, dbSizeBytes: dbSize };
+        const stats = engine.getStats();
+        let dbSizeBytes = 0;
+        try { dbSizeBytes = statSync(dbPath).size; } catch { /* */ }
+        stats.dbSizeBytes = dbSizeBytes;
         return { content: [{ type: "text", text: JSON.stringify(stats, null, 2) }] };
       }
 
       // --- brain_health ---
       if (name === "brain_health") {
-        const total = db.query<{ n: number }, []>("SELECT COUNT(*) as n FROM pages").get()?.n ?? 0;
-        const withEmb = db.query<{ n: number }, []>("SELECT COUNT(DISTINCT page_id) as n FROM page_embeddings").get()?.n ?? 0;
-        const now = new Date().toISOString().split("T")[0]!;
-        const stale = db.query<{ n: number }, [string]>("SELECT COUNT(*) as n FROM pages WHERE json_extract(frontmatter, '$.valid_until') < ?").get(now)?.n ?? 0;
-        const lowConf = db.query<{ n: number }, []>("SELECT COUNT(*) as n FROM pages WHERE json_extract(frontmatter, '$.confidence') < 5 AND json_extract(frontmatter, '$.confidence') IS NOT NULL").get()?.n ?? 0;
-        const embPct = total > 0 ? Math.round((withEmb / total) * 100) : 0;
+        const health = engine.getHealth();
+        const embPct = health.page_count > 0 ? Math.round(health.embed_coverage * 100) : 0;
+        const embeddedPages = Math.round(health.page_count * health.embed_coverage);
         const lines = [
-          `Total pages: ${total}`,
-          `Embeddings: ${withEmb}/${total} (${embPct}%)${withEmb < total ? " — run 'gbrain embed' to fill gaps" : " ✓"}`,
-          `Stale pages: ${stale}${stale > 0 ? " ⚠" : " ✓"}`,
-          `Low confidence: ${lowConf}${lowConf > 0 ? " ⚠" : " ✓"}`,
+          `Total pages: ${health.page_count}`,
+          `Embeddings: ${embeddedPages}/${health.page_count} (${embPct}%)${health.missing_embeddings > 0 ? " -- run 'gbrain embed' to fill gaps" : " ✓"}`,
+          `Stale pages: ${health.stale_pages}${health.stale_pages > 0 ? " !" : " ✓"}`,
+          `Missing embeddings: ${health.missing_embeddings}${health.missing_embeddings > 0 ? " !" : " ✓"}`,
         ];
         return { content: [{ type: "text", text: lines.join("\n") }] };
       }
@@ -493,20 +396,16 @@ export function createMcpServer(db: Database, dbPath: string): Server {
       // --- brain_lint ---
       if (name === "brain_lint") {
         const today = new Date().toISOString().slice(0, 10)!;
-        const allPages = db.query<PageRow, []>("SELECT * FROM pages").all();
+        const allPages = engine.listPages({ limit: 10000 });
         const stale: string[] = [];
         const lowConf: string[] = [];
-        for (const row of allPages) {
-          let fm: { valid_until?: string; confidence?: number } = {};
-          try { fm = JSON.parse(row.frontmatter); } catch { /* */ }
-          if (fm.valid_until && fm.valid_until < today) stale.push(`${row.slug} (expires ${fm.valid_until})`);
-          if (fm.confidence !== undefined && fm.confidence < 5) lowConf.push(`${row.slug} (confidence ${fm.confidence})`);
+        for (const page of allPages) {
+          const fm = page.frontmatter as { valid_until?: string; confidence?: number };
+          if (fm.valid_until && fm.valid_until < today) stale.push(`${page.slug} (expires ${fm.valid_until})`);
+          if (fm.confidence !== undefined && fm.confidence < 5) lowConf.push(`${page.slug} (confidence ${fm.confidence})`);
         }
-        const linkedSlugs = new Set(
-          db.query<{ slug: string }, []>("SELECT DISTINCT p.slug FROM pages p JOIN links l ON l.to_page_id=p.id").all().map((r) => r.slug)
-        );
-        const orphans = allPages.filter((r) => !linkedSlugs.has(r.slug)).map((r) => r.slug);
-
+        const linkedSlugs = new Set(allPages.flatMap(p => engine.getLinks(p.slug).map(l => l.to_slug)));
+        const orphans = allPages.filter(p => !linkedSlugs.has(p.slug)).map(p => p.slug);
         const parts = [
           `Stale (${stale.length}): ${stale.join(", ") || "none"}`,
           `Low confidence (${lowConf.length}): ${lowConf.join(", ") || "none"}`,
@@ -516,6 +415,7 @@ export function createMcpServer(db: Database, dbPath: string): Server {
       }
 
       return { content: [{ type: "text", text: `Unknown tool: ${name}` }], isError: true };
+
     } catch (e) {
       return { content: [{ type: "text", text: String(e) }], isError: true };
     }

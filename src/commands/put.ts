@@ -1,7 +1,7 @@
 import { defineCommand } from "citty";
-import { openDb, resolveDbPath, migrateDb } from "../core/db.ts";
-import { parsePage, frontmatterToJson } from "../core/markdown.ts";
-import type { PageRow } from "../types.ts";
+import { openDb, resolveDbPath } from "../core/db.ts";
+import { SqliteEngine } from "../core/sqlite-engine.ts";
+import { parsePage } from "../core/markdown.ts";
 
 export default defineCommand({
   meta: {
@@ -14,13 +14,12 @@ export default defineCommand({
       description: "Page slug (e.g. concepts/react-suspense)",
       required: true,
     },
-    file: { type: "option", description: "Path to markdown file (default: stdin)" },
-    db:   { type: "option", description: "Path to brain.db" },
+    file: { type: "string", description: "Path to markdown file (default: stdin)" },
+    db:   { type: "string", description: "Path to brain.db" },
     json: { type: "boolean", description: "Output result as JSON", default: false },
   },
   async run({ args }) {
-    const db = openDb(resolveDbPath(args.db));
-    migrateDb(db);
+    const engine = new SqliteEngine(openDb(resolveDbPath(args.db)));
 
     let raw: string;
     if (args.file) {
@@ -39,80 +38,26 @@ export default defineCommand({
     }
 
     const parsed = parsePage(raw, args.slug);
+    const isUpdate = !!engine.getPage(args.slug);
 
-    const existing = db
-      .query<PageRow, [string]>("SELECT id, compiled_truth, timeline, frontmatter FROM pages WHERE slug = ? LIMIT 1")
-      .get(args.slug);
+    // Snapshot version before overwriting an existing page
+    if (isUpdate) {
+      engine.createVersion(args.slug);
+    }
 
-    const fmJson = frontmatterToJson(parsed.frontmatter);
+    engine.putPage(args.slug, {
+      type: parsed.type,
+      title: parsed.title,
+      compiled_truth: parsed.compiled_truth,
+      timeline: parsed.timeline,
+      frontmatter: parsed.frontmatter,
+    });
 
-    if (existing) {
-      // Save current version before overwriting
-      db.prepare(
-        `INSERT INTO page_versions (page_id, compiled_truth, frontmatter)
-         VALUES (?, ?, ?)`
-      ).run(existing.id, existing.compiled_truth, existing.frontmatter);
-
-      db.run(
-        `UPDATE pages SET
-           type = ?, title = ?, compiled_truth = ?, timeline = ?,
-           frontmatter = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')
-         WHERE slug = ?`,
-        [
-          parsed.type,
-          parsed.title,
-          parsed.compiled_truth,
-          parsed.timeline,
-          fmJson,
-          args.slug,
-        ]
-      );
-
-      // Sync tags from frontmatter
-      syncTags(db, existing.id, parsed.frontmatter.tags ?? []);
-
-      if (args.json) {
-        console.log(JSON.stringify({ action: "updated", slug: args.slug }));
-      } else {
-        console.log(`✓ Updated: ${args.slug}`);
-      }
+    const action = isUpdate ? "updated" : "created";
+    if (args.json) {
+      console.log(JSON.stringify({ action, slug: args.slug }));
     } else {
-      const result = db.run(
-        `INSERT INTO pages (slug, type, title, compiled_truth, timeline, frontmatter)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          args.slug,
-          parsed.type,
-          parsed.title,
-          parsed.compiled_truth,
-          parsed.timeline,
-          fmJson,
-        ]
-      );
-
-      const pageId = result.lastInsertRowid as number;
-      syncTags(db, pageId, parsed.frontmatter.tags ?? []);
-
-      if (args.json) {
-        console.log(JSON.stringify({ action: "created", slug: args.slug }));
-      } else {
-        console.log(`✓ Created: ${args.slug}`);
-      }
+      console.log(`✓ ${action.charAt(0).toUpperCase() + action.slice(1)}: ${args.slug}`);
     }
   },
 });
-
-function syncTags(db: ReturnType<typeof openDb>, pageId: number, tags: string[]): void {
-  db.run("DELETE FROM tags WHERE page_id = ?", [pageId]);
-  for (const tag of tags) {
-    db.run("INSERT OR IGNORE INTO tags (page_id, tag) VALUES (?, ?)", [pageId, tag]);
-  }
-}
-
-
-function syncTags(db: ReturnType<typeof openDb>, pageId: number, tags: string[]): void {
-  db.run("DELETE FROM tags WHERE page_id = ?", [pageId]);
-  for (const tag of tags) {
-    db.run("INSERT OR IGNORE INTO tags (page_id, tag) VALUES (?, ?)", [pageId, tag]);
-  }
-}

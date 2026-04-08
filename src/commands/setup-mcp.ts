@@ -18,7 +18,7 @@ const MCP_TARGETS = [
 export default defineCommand({
   meta: { name: "setup-mcp", description: "Auto-configure MCP server in Claude Code / Cursor" },
   args: {
-    db:   { type: "option",  description: "Path to brain.db to use in MCP config" },
+    db:   { type: "string",  description: "Path to brain.db to use in MCP config" },
     all:  { type: "boolean", description: "Configure all supported clients", default: false },
   },
   run({ args }) {

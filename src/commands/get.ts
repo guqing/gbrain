@@ -1,7 +1,7 @@
 import { defineCommand } from "citty";
 import { openDb, resolveDbPath } from "../core/db.ts";
-import { rowToPage, serializePage } from "../core/markdown.ts";
-import type { PageRow } from "../types.ts";
+import { SqliteEngine } from "../core/sqlite-engine.ts";
+import { serializePage } from "../core/markdown.ts";
 
 export default defineCommand({
   meta: {
@@ -14,23 +14,17 @@ export default defineCommand({
       description: "Page slug (e.g. concepts/react-suspense)",
       required: true,
     },
-    db: { type: "option", description: "Path to brain.db" },
+    db: { type: "string", description: "Path to brain.db" },
     json: { type: "boolean", description: "Output as JSON", default: false },
   },
   run({ args }) {
-    const db = openDb(resolveDbPath(args.db));
-    const row = db
-      .query<PageRow, [string]>(
-        "SELECT * FROM pages WHERE slug = ? LIMIT 1"
-      )
-      .get(args.slug);
+    const engine = new SqliteEngine(openDb(resolveDbPath(args.db)));
+    const page = engine.getPage(args.slug);
 
-    if (!row) {
+    if (!page) {
       console.error(`✗ Page not found: ${args.slug}`);
       process.exit(1);
     }
-
-    const page = rowToPage(row);
 
     if (args.json) {
       console.log(JSON.stringify(page, null, 2));

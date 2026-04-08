@@ -1,6 +1,6 @@
 import { defineCommand } from "citty";
 import { openDb, resolveDbPath } from "../core/db.ts";
-import { ftsSearch } from "../core/fts.ts";
+import { SqliteEngine } from "../core/sqlite-engine.ts";
 
 export default defineCommand({
   meta: {
@@ -13,18 +13,18 @@ export default defineCommand({
       description: "Search query",
       required: true,
     },
-    type:  { type: "option",  description: "Filter by page type (concept, learning, ...)" },
-    limit: { type: "option",  description: "Max results (default: 10)" },
-    db:    { type: "option",  description: "Path to brain.db" },
+    type:  { type: "string",  description: "Filter by page type (concept, learning, ...)" },
+    limit: { type: "string",  description: "Max results (default: 10)" },
+    db:    { type: "string",  description: "Path to brain.db" },
     json:  { type: "boolean", description: "Output as JSON", default: false },
   },
   run({ args }) {
-    const db = openDb(resolveDbPath(args.db));
+    const engine = new SqliteEngine(openDb(resolveDbPath(args.db)));
     const limit = args.limit ? parseInt(args.limit, 10) : 10;
 
     let results;
     try {
-      results = ftsSearch(db, args.query, { type: args.type, limit });
+      results = engine.searchKeyword(args.query, { type: args.type, limit });
     } catch {
       console.error(`✗ Search error — try quoting your query: gbrain search "${args.query}"`);
       process.exit(1);

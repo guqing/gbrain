@@ -9,9 +9,9 @@ export default defineCommand({
   meta: { name: "export", description: "Export pages to markdown files" },
   args: {
     dir: { type: "positional", description: "Output directory", required: true },
-    db: { type: "option", description: "Path to brain.db" },
-    type: { type: "option", description: "Filter by type" },
-    slug: { type: "option", description: "Export specific slug" },
+    db: { type: "string", description: "Path to brain.db" },
+    type: { type: "string", description: "Filter by type" },
+    slug: { type: "string", description: "Export specific slug" },
   },
   run({ args }) {
     const db = openDb(resolveDbPath(args.db));

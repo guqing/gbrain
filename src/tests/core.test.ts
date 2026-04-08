@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach } from "bun:test";
 import { Database } from "bun:sqlite";
-import { createDb } from "../core/db.ts";
+import { createDb, SCHEMA } from "../core/db.ts";
 import { parsePage, serializePage, rowToPage, frontmatterToJson } from "../core/markdown.ts";
 import { ftsSearch } from "../core/fts.ts";
 import { createLink, getBacklinks, removeLink } from "../core/links.ts";
@@ -9,82 +9,8 @@ import type { PageRow } from "../types.ts";
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 function freshDb(): Database {
-  // bun:sqlite accepts ":memory:" for in-memory DB
   const db = new Database(":memory:");
-  // Run the full schema by calling createDb logic inline
-  // We can't use createDb (it checks existsSync), so exec schema directly
-  db.exec(`
-    PRAGMA journal_mode = WAL;
-    PRAGMA foreign_keys = ON;
-
-    CREATE TABLE pages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      slug TEXT NOT NULL UNIQUE,
-      type TEXT NOT NULL,
-      title TEXT NOT NULL,
-      compiled_truth TEXT NOT NULL DEFAULT '',
-      timeline TEXT NOT NULL DEFAULT '',
-      frontmatter TEXT NOT NULL DEFAULT '{}',
-      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-    );
-    CREATE INDEX idx_pages_type ON pages(type);
-    CREATE INDEX idx_pages_slug ON pages(slug);
-
-    CREATE VIRTUAL TABLE page_fts USING fts5(
-      title, compiled_truth, timeline,
-      content='pages', content_rowid='id',
-      tokenize='porter unicode61'
-    );
-
-    CREATE TRIGGER pages_ai AFTER INSERT ON pages BEGIN
-      INSERT INTO page_fts(rowid, title, compiled_truth, timeline)
-      VALUES (new.id, new.title, new.compiled_truth, new.timeline);
-    END;
-    CREATE TRIGGER pages_ad AFTER DELETE ON pages BEGIN
-      INSERT INTO page_fts(page_fts, rowid, title, compiled_truth, timeline)
-      VALUES ('delete', old.id, old.title, old.compiled_truth, old.timeline);
-    END;
-    CREATE TRIGGER pages_au AFTER UPDATE ON pages BEGIN
-      INSERT INTO page_fts(page_fts, rowid, title, compiled_truth, timeline)
-      VALUES ('delete', old.id, old.title, old.compiled_truth, old.timeline);
-      INSERT INTO page_fts(rowid, title, compiled_truth, timeline)
-      VALUES (new.id, new.title, new.compiled_truth, new.timeline);
-    END;
-
-    CREATE TABLE links (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      from_page_id INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
-      to_page_id INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
-      context TEXT NOT NULL DEFAULT '',
-      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-      UNIQUE(from_page_id, to_page_id)
-    );
-    CREATE TABLE tags (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      page_id INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
-      tag TEXT NOT NULL,
-      UNIQUE(page_id, tag)
-    );
-    CREATE TABLE page_embeddings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      page_id INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
-      chunk_index INTEGER NOT NULL,
-      chunk_text TEXT NOT NULL,
-      embedding BLOB NOT NULL,
-      model TEXT NOT NULL DEFAULT 'text-embedding-3-small',
-      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-    );
-    CREATE TABLE ingest_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      source_type TEXT NOT NULL,
-      source_ref TEXT NOT NULL,
-      pages_updated TEXT NOT NULL DEFAULT '[]',
-      summary TEXT NOT NULL DEFAULT '',
-      timestamp TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-    );
-    CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-  `);
+  db.exec(SCHEMA);
   return db;
 }
 

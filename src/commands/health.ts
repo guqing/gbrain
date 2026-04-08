@@ -5,7 +5,7 @@ import { SqliteEngine } from "../core/sqlite-engine.ts";
 export default defineCommand({
   meta: { name: "health", description: "Show brain health metrics" },
   args: {
-    db: { type: "option", description: "Path to brain.db" },
+    db: { type: "string", description: "Path to brain.db" },
     json: { type: "boolean", description: "Output as JSON", default: false },
   },
   run({ args }) {

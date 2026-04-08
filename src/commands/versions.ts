@@ -6,9 +6,9 @@ export default defineCommand({
   meta: { name: "versions", description: "Manage page versions (snapshot, list, revert)" },
   args: {
     slug: { type: "positional", description: "Page slug", required: true },
-    db: { type: "option", description: "Path to brain.db" },
+    db: { type: "string", description: "Path to brain.db" },
     snap: { type: "boolean", description: "Create a version snapshot", default: false },
-    revert: { type: "option", description: "Revert to version ID" },
+    revert: { type: "string", description: "Revert to version ID" },
     json: { type: "boolean", description: "Output as JSON", default: false },
   },
   run({ args }) {

@@ -6,8 +6,8 @@ export default defineCommand({
   meta: { name: "graph", description: "Traverse the knowledge graph from a slug" },
   args: {
     slug: { type: "positional", description: "Starting page slug", required: true },
-    db: { type: "option", description: "Path to brain.db" },
-    depth: { type: "option", description: "Traversal depth (default 3)" },
+    db: { type: "string", description: "Path to brain.db" },
+    depth: { type: "string", description: "Traversal depth (default 3)" },
     json: { type: "boolean", description: "Output as JSON", default: false },
   },
   run({ args }) {

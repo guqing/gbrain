@@ -7,9 +7,9 @@ export default defineCommand({
   meta: { name: "query", description: "Semantic vector search" },
   args: {
     query: { type: "positional", description: "Search query", required: true },
-    db: { type: "option", description: "Path to brain.db" },
-    limit: { type: "option", description: "Max results (default 10)" },
-    type: { type: "option", description: "Filter by page type" },
+    db: { type: "string", description: "Path to brain.db" },
+    limit: { type: "string", description: "Max results (default 10)" },
+    type: { type: "string", description: "Filter by page type" },
     json: { type: "boolean", description: "Output as JSON", default: false },
   },
   async run({ args }) {

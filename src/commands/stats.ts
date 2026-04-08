@@ -1,57 +1,33 @@
 import { defineCommand } from "citty";
 import { openDb, resolveDbPath } from "../core/db.ts";
+import { SqliteEngine } from "../core/sqlite-engine.ts";
 import { statSync } from "fs";
-import type { BrainStats } from "../types.ts";
 
 export default defineCommand({
   meta: { name: "stats", description: "Show brain statistics" },
   args: {
-    db:   { type: "option",  description: "Path to brain.db" },
+    db:   { type: "string",  description: "Path to brain.db" },
     json: { type: "boolean", description: "Output as JSON", default: false },
   },
   run({ args }) {
     const dbPath = resolveDbPath(args.db);
-    const db = openDb(dbPath);
+    const engine = new SqliteEngine(openDb(dbPath));
+    const stats = engine.getStats();
 
-    const total = (db.query<{ n: number }, []>("SELECT COUNT(*) as n FROM pages").get()?.n) ?? 0;
-
-    const byType = Object.fromEntries(
-      db
-        .query<{ type: string; n: number }, []>(
-          "SELECT type, COUNT(*) as n FROM pages GROUP BY type ORDER BY n DESC"
-        )
-        .all()
-        .map((r) => [r.type, r.n])
-    );
-
-    const links   = db.query<{ n: number }, []>("SELECT COUNT(*) as n FROM links").get()?.n ?? 0;
-    const tags    = db.query<{ n: number }, []>("SELECT COUNT(*) as n FROM tags").get()?.n ?? 0;
-    const embeds  = db.query<{ n: number }, []>("SELECT COUNT(*) as n FROM page_embeddings").get()?.n ?? 0;
-    const ingests = db.query<{ n: number }, []>("SELECT COUNT(*) as n FROM ingest_log").get()?.n ?? 0;
-
-    let dbSize = 0;
-    try { dbSize = statSync(dbPath).size; } catch { /* ignore */ }
-
-    const stats: BrainStats = {
-      totalPages: total,
-      byType,
-      totalLinks: links,
-      totalTags: tags,
-      totalEmbeddings: embeds,
-      totalIngestLog: ingests,
-      dbSizeBytes: dbSize,
-    };
+    let dbSizeBytes = 0;
+    try { dbSizeBytes = statSync(dbPath).size; } catch { /* ignore */ }
+    stats.dbSizeBytes = dbSizeBytes;
 
     if (args.json) { console.log(JSON.stringify(stats, null, 2)); return; }
 
-    console.log(`Pages:       ${total}`);
-    for (const [type, n] of Object.entries(byType)) {
+    console.log(`Pages:       ${stats.totalPages}`);
+    for (const [type, n] of Object.entries(stats.byType)) {
       console.log(`  ${type.padEnd(12)} ${n}`);
     }
-    console.log(`Links:       ${links}`);
-    console.log(`Tags:        ${tags}`);
-    console.log(`Embeddings:  ${embeds}`);
-    console.log(`Ingest log:  ${ingests}`);
-    console.log(`DB size:     ${(dbSize / 1024 / 1024).toFixed(2)} MB`);
+    console.log(`Links:       ${stats.totalLinks}`);
+    console.log(`Tags:        ${stats.totalTags}`);
+    console.log(`Embeddings:  ${stats.totalEmbeddings}`);
+    console.log(`Ingest log:  ${stats.totalIngestLog}`);
+    console.log(`DB size:     ${(dbSizeBytes / 1024 / 1024).toFixed(2)} MB`);
   },
 });

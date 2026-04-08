@@ -8,8 +8,8 @@ import type { ChunkInput } from "../types.ts";
 export default defineCommand({
   meta: { name: "embed", description: "Generate embeddings for pages" },
   args: {
-    db: { type: "option", description: "Path to brain.db" },
-    slug: { type: "option", description: "Embed a specific page (default: all missing)" },
+    db: { type: "string", description: "Path to brain.db" },
+    slug: { type: "string", description: "Embed a specific page (default: all missing)" },
     "force": { type: "boolean", description: "Re-embed even if already embedded", default: false },
   },
   async run({ args }) {
@@ -31,7 +31,9 @@ export default defineCommand({
     }
 
     let embedded = 0;
-    for (const page of pages) {
+    const total = pages.length;
+    for (let i = 0; i < pages.length; i++) {
+      const page = pages[i]!;
       if (!args["force"]) {
         const chunks = engine.getChunks(page.slug);
         if (chunks.some(c => c.embedding !== null)) continue;
@@ -52,16 +54,18 @@ export default defineCommand({
       if (chunkInputs.length === 0) continue;
 
       try {
+        process.stdout.write(`[${i + 1}/${total}] Embedding: ${page.slug} ...`);
         const embeddings = await embedBatch(chunkInputs.map(c => c.chunk_text));
-        for (let i = 0; i < chunkInputs.length; i++) {
-          chunkInputs[i]!.embedding = embeddings[i];
-          chunkInputs[i]!.token_count = Math.ceil(chunkInputs[i]!.chunk_text.length / 4);
+        for (let j = 0; j < chunkInputs.length; j++) {
+          chunkInputs[j]!.embedding = embeddings[j];
+          chunkInputs[j]!.token_count = Math.ceil(chunkInputs[j]!.chunk_text.length / 4);
         }
         engine.upsertChunks(page.slug, chunkInputs);
         embedded++;
-        console.log(`✓ Embedded: ${page.slug} (${chunkInputs.length} chunks)`);
+        process.stdout.write(` done (${chunkInputs.length} chunks)\n`);
       } catch (e) {
-        console.error(`✗ Failed: ${page.slug}  ${e}`);
+        process.stdout.write(` FAILED\n`);
+        console.error(`  ✗ ${e instanceof Error ? e.message : e}`);
       }
     }
 
