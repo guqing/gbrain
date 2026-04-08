@@ -1,5 +1,5 @@
 {
-  "name": "gbrain",
+  "name": "@guqings/gbrain",
   "version": "0.2.0",
   "description": "Personal knowledge brain — CLI + MCP server. SQLite + FTS5 + vector search.",
   "type": "module",
@@ -12,9 +12,16 @@
     "test": "bun test"
   },
   "files": [
-    "bin/gbrain",
-    "src/"
+    "bin/gbrain.ts",
+    "src/",
+    "!src/tests/"
   ],
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": ["knowledge-base", "mcp", "sqlite", "cli", "rag"],
   "license": "MIT",
   "dependencies": {
