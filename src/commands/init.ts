@@ -2,6 +2,7 @@ import { defineCommand } from "citty";
 import { existsSync, mkdirSync } from "fs";
 import { resolve, dirname } from "path";
 import { createDb, resolveDbPath } from "../core/db.ts";
+import { getConfigDir, getConfigPath } from "../core/config.ts";
 
 export default defineCommand({
   meta: {
@@ -42,6 +43,10 @@ export default defineCommand({
 
     createDb(dbPath);
     console.log(`✓ brain.db created at ${dbPath}`);
+
+    // Ensure config directory exists
+    mkdirSync(getConfigDir(), { recursive: true });
+
     console.log("");
     console.log("Next steps:");
     console.log(`  gbrain put concepts/my-first-note  # add a page`);
@@ -49,5 +54,7 @@ export default defineCommand({
     console.log(`  gbrain setup-mcp                    # connect to Claude Code`);
     console.log("");
     console.log(`  Set GBRAIN_DB=${dbPath} to use this brain from any directory.`);
+    console.log(`  Configure embeddings: gbrain config set embed.base_url <url>`);
+    console.log(`  Config file: ${getConfigPath()}`);
   },
 });

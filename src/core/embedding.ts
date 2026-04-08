@@ -1,23 +1,38 @@
 import OpenAI from 'openai';
+import { loadConfig } from './config.ts';
 
-const MODEL = 'text-embedding-3-small';
-const DIMENSIONS = 1536;
 const MAX_CHARS = 8000;
 const MAX_RETRIES = 5;
 const BASE_DELAY_MS = 4000;
 const MAX_DELAY_MS = 120000;
 const BATCH_SIZE = 100;
 
-let client: OpenAI | null = null;
-
 function getClient(): OpenAI {
-  if (!process.env['OPENAI_API_KEY']) {
-    throw new Error('OPENAI_API_KEY is not set. Set it to use embedding features.');
+  const cfg = loadConfig();
+  const { base_url, api_key, model: _m, dimensions: _d } = cfg.embed;
+
+  // For local providers (Ollama etc.), no real API key is needed
+  const isLocal = base_url && (base_url.includes("localhost") || base_url.includes("127.0.0.1"));
+  const resolvedKey = api_key ?? (isLocal ? "ollama" : undefined);
+
+  if (!resolvedKey) {
+    throw new Error(
+      "No embedding API key configured.\n" +
+      "  Option 1: gbrain config set embed.api_key <key>\n" +
+      "  Option 2: export OPENAI_API_KEY=<key>\n" +
+      "  For Vercel AI Gateway: gbrain config set embed.base_url https://ai-gateway.vercel.sh/v1"
+    );
   }
-  if (!client) {
-    client = new OpenAI();
-  }
-  return client;
+
+  return new OpenAI({
+    apiKey: resolvedKey,
+    ...(base_url ? { baseURL: base_url } : {}),
+  });
+}
+
+function getModelConfig(): { model: string; dimensions: number } {
+  const cfg = loadConfig();
+  return { model: cfg.embed.model, dimensions: cfg.embed.dimensions };
 }
 
 export async function embed(text: string): Promise<Float32Array> {
@@ -40,12 +55,14 @@ export async function embedBatch(texts: string[]): Promise<Float32Array[]> {
 }
 
 async function embedBatchWithRetry(texts: string[]): Promise<Float32Array[]> {
+  const { model, dimensions } = getModelConfig();
+
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
       const response = await getClient().embeddings.create({
-        model: MODEL,
+        model,
         input: texts,
-        dimensions: DIMENSIONS,
+        dimensions,
       });
 
       const sorted = response.data.sort((a, b) => a.index - b.index);
@@ -78,27 +95,25 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-export { MODEL as EMBEDDING_MODEL, DIMENSIONS as EMBEDDING_DIMENSIONS };
+// Dynamic exports — read from config at call time
+export function EMBEDDING_MODEL(): string { return loadConfig().embed.model; }
+export function EMBEDDING_DIMENSIONS(): number { return loadConfig().embed.dimensions; }
 
-// ── Compatibility aliases for older code ──────────────────────────────────────
+// ── Compatibility aliases ─────────────────────────────────────────────────────
 
-/** Alias for embedBatch — returns Float32Array[] */
 export async function embedTexts(texts: string[]): Promise<Float32Array[]> {
   return embedBatch(texts);
 }
 
-/** Store a Float32Array embedding as a Buffer BLOB */
 export function embeddingToBlob(embedding: Float32Array): Buffer {
   return Buffer.from(embedding.buffer);
 }
 
-/** Read a BLOB (Buffer) back into a number[] for cosine similarity */
 export function blobToEmbedding(blob: Buffer): number[] {
   const floats = new Float32Array(blob.buffer, blob.byteOffset, blob.byteLength / 4);
   return Array.from(floats);
 }
 
-/** Cosine similarity between two number[] vectors */
 export function cosineSimilarity(a: number[], b: number[]): number {
   let dot = 0, normA = 0, normB = 0;
   for (let i = 0; i < a.length; i++) {

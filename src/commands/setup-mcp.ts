@@ -27,7 +27,7 @@ export default defineCommand({
     // When installed via `bun install -g`, process.execPath is the Bun runtime,
     // not the gbrain shim. Detect script mode and find the real executable.
     const isScriptMode = (process.argv[1] ?? "").endsWith(".ts");
-    const gbrainShim = isScriptMode ? (Bun.which("gbrain") ?? process.argv[1]) : process.execPath;
+    const gbrainShim: string = isScriptMode ? (Bun.which("gbrain") ?? process.argv[1] ?? "gbrain") : process.execPath;
 
     const entry = gbrainShim.endsWith(".ts")
       ? { command: process.execPath, args: [gbrainShim, "serve", "--db", dbPath] }

@@ -2,24 +2,52 @@ import { defineCommand } from "citty";
 import { openDb, resolveDbPath } from "../core/db.ts";
 import { SqliteEngine } from "../core/sqlite-engine.ts";
 import { embedBatch } from "../core/embedding.ts";
+import { loadConfig } from "../core/config.ts";
 import { chunkText } from "../core/chunkers/recursive.ts";
 import type { ChunkInput } from "../types.ts";
 
 export default defineCommand({
   meta: { name: "embed", description: "Generate embeddings for pages" },
   args: {
-    db: { type: "string", description: "Path to brain.db" },
-    slug: { type: "string", description: "Embed a specific page (default: all missing)" },
+    db:      { type: "string",  description: "Path to brain.db" },
+    slug:    { type: "string",  description: "Embed a specific page (default: all missing)" },
     "force": { type: "boolean", description: "Re-embed even if already embedded", default: false },
+    "rebuild": { type: "boolean", description: "Clear all embeddings and re-embed from scratch (required when model changes)", default: false },
   },
   async run({ args }) {
-    if (!process.env['OPENAI_API_KEY']) {
-      console.error("✗ OPENAI_API_KEY is not set.");
+    const cfg = loadConfig(args.db ? { db: args.db } : undefined);
+
+    // Check API key is configured (skip for local providers)
+    const isLocal = cfg.embed.base_url &&
+      (cfg.embed.base_url.includes("localhost") || cfg.embed.base_url.includes("127.0.0.1"));
+    if (!cfg.embed.api_key && !isLocal) {
+      console.error("✗ No embedding API key configured.");
+      console.error("  gbrain config set embed.api_key <key>");
+      console.error("  Or: export OPENAI_API_KEY=<key>");
       process.exit(1);
     }
 
     const db = openDb(resolveDbPath(args.db));
     const engine = new SqliteEngine(db);
+
+    // Dimension mismatch guard
+    const storedModel = (db.query("SELECT value FROM config WHERE key = 'embedding_model'").get() as { value: string } | null)?.value;
+    const configuredModel = cfg.embed.model;
+
+    if (storedModel && storedModel !== configuredModel && !args["rebuild"]) {
+      console.error(`✗ Embedding model changed:`);
+      console.error(`    stored     = ${storedModel}`);
+      console.error(`    configured = ${configuredModel}`);
+      console.error(`  Existing embeddings are incompatible with the new model.`);
+      console.error(`  Run: gbrain embed --all --rebuild  to clear and re-embed everything.`);
+      process.exit(1);
+    }
+
+    if (args["rebuild"]) {
+      db.exec("DELETE FROM page_embeddings");
+      db.exec("DELETE FROM content_chunks WHERE embedding IS NOT NULL");
+      console.log("✓ Cleared all existing embeddings.");
+    }
 
     let pages;
     if (args.slug) {
@@ -34,7 +62,7 @@ export default defineCommand({
     const total = pages.length;
     for (let i = 0; i < pages.length; i++) {
       const page = pages[i]!;
-      if (!args["force"]) {
+      if (!args["force"] && !args["rebuild"]) {
         const chunks = engine.getChunks(page.slug);
         if (chunks.some(c => c.embedding !== null)) continue;
       }
@@ -67,6 +95,11 @@ export default defineCommand({
         process.stdout.write(` FAILED\n`);
         console.error(`  ✗ ${e instanceof Error ? e.message : e}`);
       }
+    }
+
+    // Persist the model used so future runs can detect mismatch
+    if (embedded > 0) {
+      db.run("INSERT OR REPLACE INTO config (key, value) VALUES ('embedding_model', ?)", [configuredModel]);
     }
 
     console.log(`\nDone: ${embedded} pages embedded.`);
