@@ -18,9 +18,11 @@
   "keywords": ["knowledge-base", "mcp", "sqlite", "cli", "rag"],
   "license": "MIT",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.85.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "citty": "^0.2.2",
     "gray-matter": "^4.0.3",
+    "openai": "^6.33.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {

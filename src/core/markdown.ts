@@ -5,7 +5,7 @@ const TIMELINE_SEPARATOR = "\n\n---\n\n## Timeline\n";
 const SEPARATOR_REGEX = /\n\n---\n\n## Timeline\n/;
 
 // Parse a full markdown string (with YAML frontmatter) into a Page-like structure
-export function parsePage(raw: string, slug: string): Omit<Page, "id" | "created_at" | "updated_at"> {
+export function parsePage(raw: string, slug: string): Omit<Page, "id" | "created_at" | "updated_at"> & { tags: string[] } {
   const { data, content } = matter(raw);
   const fm = data as PageFrontmatter;
 
@@ -29,6 +29,7 @@ export function parsePage(raw: string, slug: string): Omit<Page, "id" | "created
     compiled_truth,
     timeline,
     frontmatter: fm,
+    tags: (fm.tags ?? []) as string[],
   };
 }
 

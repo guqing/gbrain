@@ -1,5 +1,5 @@
 import { defineCommand } from "citty";
-import { openDb, resolveDbPath } from "../core/db.ts";
+import { openDb, resolveDbPath, migrateDb } from "../core/db.ts";
 import { parsePage, frontmatterToJson } from "../core/markdown.ts";
 import type { PageRow } from "../types.ts";
 
@@ -20,6 +20,7 @@ export default defineCommand({
   },
   async run({ args }) {
     const db = openDb(resolveDbPath(args.db));
+    migrateDb(db);
 
     let raw: string;
     if (args.file) {
@@ -40,12 +41,18 @@ export default defineCommand({
     const parsed = parsePage(raw, args.slug);
 
     const existing = db
-      .query<PageRow, [string]>("SELECT id FROM pages WHERE slug = ? LIMIT 1")
+      .query<PageRow, [string]>("SELECT id, compiled_truth, timeline, frontmatter FROM pages WHERE slug = ? LIMIT 1")
       .get(args.slug);
 
     const fmJson = frontmatterToJson(parsed.frontmatter);
 
     if (existing) {
+      // Save current version before overwriting
+      db.prepare(
+        `INSERT INTO page_versions (page_id, compiled_truth, frontmatter)
+         VALUES (?, ?, ?)`
+      ).run(existing.id, existing.compiled_truth, existing.frontmatter);
+
       db.run(
         `UPDATE pages SET
            type = ?, title = ?, compiled_truth = ?, timeline = ?,
@@ -94,6 +101,14 @@ export default defineCommand({
     }
   },
 });
+
+function syncTags(db: ReturnType<typeof openDb>, pageId: number, tags: string[]): void {
+  db.run("DELETE FROM tags WHERE page_id = ?", [pageId]);
+  for (const tag of tags) {
+    db.run("INSERT OR IGNORE INTO tags (page_id, tag) VALUES (?, ?)", [pageId, tag]);
+  }
+}
+
 
 function syncTags(db: ReturnType<typeof openDb>, pageId: number, tags: string[]): void {
   db.run("DELETE FROM tags WHERE page_id = ?", [pageId]);
