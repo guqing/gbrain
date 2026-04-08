@@ -1,6 +1,6 @@
 {
   "name": "@guqings/gbrain",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Personal knowledge brain — CLI + MCP server. SQLite + FTS5 + vector search.",
   "type": "module",
   "bin": {
@@ -22,7 +22,13 @@
   "publishConfig": {
     "access": "public"
   },
-  "keywords": ["knowledge-base", "mcp", "sqlite", "cli", "rag"],
+  "keywords": [
+    "knowledge-base",
+    "mcp",
+    "sqlite",
+    "cli",
+    "rag"
+  ],
   "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.85.0",

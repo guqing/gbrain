@@ -23,12 +23,15 @@ export default defineCommand({
   },
   run({ args }) {
     const dbPath = resolveDbPath(args.db);
-    const gbrainBin = process.execPath; // path to the gbrain binary itself
 
-    const entry = {
-      command: gbrainBin,
-      args: ["serve", "--db", dbPath],
-    };
+    // When installed via `bun install -g`, process.execPath is the Bun runtime,
+    // not the gbrain shim. Detect script mode and find the real executable.
+    const isScriptMode = (process.argv[1] ?? "").endsWith(".ts");
+    const gbrainShim = isScriptMode ? (Bun.which("gbrain") ?? process.argv[1]) : process.execPath;
+
+    const entry = gbrainShim.endsWith(".ts")
+      ? { command: process.execPath, args: [gbrainShim, "serve", "--db", dbPath] }
+      : { command: gbrainShim, args: ["serve", "--db", dbPath] };
 
     const targets = args.all ? MCP_TARGETS : MCP_TARGETS.slice(0, 1); // default: Claude Code only
 
