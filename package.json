@@ -1,6 +1,6 @@
 {
   "name": "@guqings/gbrain",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Personal knowledge brain — CLI + MCP server. SQLite + FTS5 + vector search.",
   "type": "module",
   "bin": {
