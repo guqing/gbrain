@@ -2,6 +2,7 @@ import { defineCommand } from "citty";
 import { openDb, resolveDbPath } from "../core/db.ts";
 import { SqliteEngine } from "../core/sqlite-engine.ts";
 import { embed } from "../core/embedding.ts";
+import { loadConfig } from "../core/config.ts";
 
 export default defineCommand({
   meta: { name: "query", description: "Semantic vector search" },
@@ -13,8 +14,12 @@ export default defineCommand({
     json: { type: "boolean", description: "Output as JSON", default: false },
   },
   async run({ args }) {
-    if (!process.env['OPENAI_API_KEY']) {
-      console.error("✗ OPENAI_API_KEY is not set.");
+    const cfg = loadConfig(args.db ? { db: args.db } : undefined);
+    const isLocal = cfg.embed.base_url &&
+      (cfg.embed.base_url.includes("localhost") || cfg.embed.base_url.includes("127.0.0.1"));
+    if (!cfg.embed.api_key && !isLocal) {
+      console.error("✗ No embedding API key configured.");
+      console.error("  Run: gbrain config set embed.api_key <key>");
       process.exit(1);
     }
 
