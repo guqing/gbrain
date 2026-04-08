@@ -1,35 +1,40 @@
 import { defineCommand } from "citty";
-import { resolveDbPath, openDb } from "../core/db.ts";
-import { serializePage, rowToPage } from "../core/markdown.ts";
-import { mkdirSync, writeFileSync } from "fs";
+import { openDb, resolveDbPath } from "../core/db.ts";
+import { SqliteEngine } from "../core/sqlite-engine.ts";
+import { serializePage } from "../core/markdown.ts";
+import { writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
-import type { PageRow } from "../types.ts";
 
 export default defineCommand({
-  meta: { name: "export", description: "Export all pages to a markdown directory" },
+  meta: { name: "export", description: "Export pages to markdown files" },
   args: {
+    dir: { type: "positional", description: "Output directory", required: true },
     db: { type: "option", description: "Path to brain.db" },
-    dir: { type: "option", description: "Output directory (default: ./export)", default: "./export" },
+    type: { type: "option", description: "Filter by type" },
+    slug: { type: "option", description: "Export specific slug" },
   },
   run({ args }) {
-    const dbPath = resolveDbPath(args.db);
-    const db = openDb(dbPath);
-    const outDir = args.dir ?? "./export";
+    const db = openDb(resolveDbPath(args.db));
+    const engine = new SqliteEngine(db);
+    const dir = args.dir;
 
-    const rows = db
-      .query<PageRow, []>("SELECT * FROM pages ORDER BY slug")
-      .all();
-
-    let count = 0;
-    for (const row of rows) {
-      const page = rowToPage(row);
-      const markdown = serializePage(page);
-      const filePath = join(outDir, row.slug + ".md");
-      mkdirSync(dirname(filePath), { recursive: true });
-      writeFileSync(filePath, markdown, "utf-8");
-      count++;
+    let pages;
+    if (args.slug) {
+      const p = engine.getPage(args.slug);
+      if (!p) { console.error(`✗ Page not found: ${args.slug}`); process.exit(1); }
+      pages = [p];
+    } else {
+      pages = engine.listPages({ type: args.type, limit: 100000 });
     }
 
-    console.log(`✓ Exported ${count} page(s) to ${outDir}/`);
+    let exported = 0;
+    for (const page of pages) {
+      const filePath = join(dir, page.slug + '.md');
+      mkdirSync(dirname(filePath), { recursive: true });
+      writeFileSync(filePath, serializePage(page), 'utf-8');
+      exported++;
+    }
+
+    console.log(`✓ Exported ${exported} pages to ${dir}`);
   },
 });

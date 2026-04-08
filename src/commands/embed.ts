@@ -1,89 +1,70 @@
 import { defineCommand } from "citty";
-import { resolveDbPath, openDb, migrateDb } from "../core/db.ts";
+import { openDb, resolveDbPath } from "../core/db.ts";
+import { SqliteEngine } from "../core/sqlite-engine.ts";
+import { embedBatch } from "../core/embedding.ts";
 import { chunkText } from "../core/chunkers/recursive.ts";
-import { embedTexts, embeddingToBlob, EMBEDDING_MODEL } from "../core/embedding.ts";
+import type { ChunkInput } from "../types.ts";
 
 export default defineCommand({
-  meta: { name: "embed", description: "Generate vector embeddings for pages" },
+  meta: { name: "embed", description: "Generate embeddings for pages" },
   args: {
     db: { type: "option", description: "Path to brain.db" },
-    all: { type: "boolean", description: "Re-embed all pages (not just missing)", default: false },
-    slug: { type: "positional", description: "Slug to embed (optional)", required: false },
+    slug: { type: "option", description: "Embed a specific page (default: all missing)" },
+    "force": { type: "boolean", description: "Re-embed even if already embedded", default: false },
   },
   async run({ args }) {
-    const dbPath = resolveDbPath(args.db);
-    const db = openDb(dbPath);
-    migrateDb(db);
+    if (!process.env['OPENAI_API_KEY']) {
+      console.error("✗ OPENAI_API_KEY is not set.");
+      process.exit(1);
+    }
 
-    let pages: { id: number; slug: string; compiled_truth: string; timeline: string }[];
+    const db = openDb(resolveDbPath(args.db));
+    const engine = new SqliteEngine(db);
 
+    let pages;
     if (args.slug) {
-      const row = db
-        .query<{ id: number; slug: string; compiled_truth: string; timeline: string }, [string]>(
-          "SELECT id, slug, compiled_truth, timeline FROM pages WHERE slug = ?"
-        )
-        .get(args.slug);
-      if (!row) {
-        console.error(`✗ Page not found: ${args.slug}`);
-        process.exit(1);
-      }
-      pages = [row];
-    } else if (args.all) {
-      pages = db
-        .query<{ id: number; slug: string; compiled_truth: string; timeline: string }, []>(
-          "SELECT id, slug, compiled_truth, timeline FROM pages"
-        )
-        .all();
+      const p = engine.getPage(args.slug);
+      if (!p) { console.error(`✗ Page not found: ${args.slug}`); process.exit(1); }
+      pages = [p];
     } else {
-      // Only pages missing embeddings
-      pages = db
-        .query<{ id: number; slug: string; compiled_truth: string; timeline: string }, []>(
-          `SELECT p.id, p.slug, p.compiled_truth, p.timeline FROM pages p
-           WHERE NOT EXISTS (SELECT 1 FROM page_embeddings e WHERE e.page_id = p.id)`
-        )
-        .all();
+      pages = engine.listPages({ limit: 10000 });
     }
 
-    if (pages.length === 0) {
-      console.log("✓ All pages already have embeddings. Use --all to force re-embed.");
-      return;
-    }
-
-    console.log(`Embedding ${pages.length} page(s) with ${EMBEDDING_MODEL}...`);
-
-    const deleteStmt = db.prepare("DELETE FROM page_embeddings WHERE page_id = ?");
-    const insertStmt = db.prepare(
-      "INSERT INTO page_embeddings (page_id, chunk_index, chunk_text, embedding, model) VALUES (?, ?, ?, ?, ?)"
-    );
-
-    let totalChunks = 0;
+    let embedded = 0;
     for (const page of pages) {
-      const fullText = [page.compiled_truth, page.timeline].filter(Boolean).join("\n\n");
-      const chunks = chunkText(fullText);
-      if (chunks.length === 0) {
-        console.log(`  skip ${page.slug} (empty)`);
-        continue;
+      if (!args["force"]) {
+        const chunks = engine.getChunks(page.slug);
+        if (chunks.some(c => c.embedding !== null)) continue;
       }
 
-      process.stdout.write(`  ${page.slug} (${chunks.length} chunks)...`);
+      const chunkInputs: ChunkInput[] = [];
+      if (page.compiled_truth.trim()) {
+        for (const c of chunkText(page.compiled_truth)) {
+          chunkInputs.push({ chunk_index: chunkInputs.length, chunk_text: c.text, chunk_source: 'compiled_truth' });
+        }
+      }
+      if (page.timeline?.trim()) {
+        for (const c of chunkText(page.timeline)) {
+          chunkInputs.push({ chunk_index: chunkInputs.length, chunk_text: c.text, chunk_source: 'timeline' });
+        }
+      }
+
+      if (chunkInputs.length === 0) continue;
 
       try {
-        const embeddings = await embedTexts(chunks);
-        db.transaction(() => {
-          deleteStmt.run(page.id);
-          embeddings.forEach((emb, i) => {
-            insertStmt.run(page.id, i, chunks[i]!, embeddingToBlob(emb), EMBEDDING_MODEL);
-          });
-        })();
-        totalChunks += chunks.length;
-        process.stdout.write(" ✓\n");
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        process.stdout.write(` ✗ ${msg}\n`);
+        const embeddings = await embedBatch(chunkInputs.map(c => c.chunk_text));
+        for (let i = 0; i < chunkInputs.length; i++) {
+          chunkInputs[i]!.embedding = embeddings[i];
+          chunkInputs[i]!.token_count = Math.ceil(chunkInputs[i]!.chunk_text.length / 4);
+        }
+        engine.upsertChunks(page.slug, chunkInputs);
+        embedded++;
+        console.log(`✓ Embedded: ${page.slug} (${chunkInputs.length} chunks)`);
+      } catch (e) {
+        console.error(`✗ Failed: ${page.slug}  ${e}`);
       }
     }
 
-    console.log(`\n✓ Done. ${pages.length} page(s), ${totalChunks} chunk(s) embedded.`);
+    console.log(`\nDone: ${embedded} pages embedded.`);
   },
 });
-

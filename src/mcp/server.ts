@@ -11,6 +11,7 @@ import { createLink, getBacklinks, removeLink } from "../core/links.ts";
 import { keywordSearch } from "../core/search/keyword.ts";
 import type { PageRow, BrainStats } from "../types.ts";
 import { statSync } from "fs";
+import { SqliteEngine } from "../core/sqlite-engine.ts";
 
 export function createMcpServer(db: Database, dbPath: string): Server {
   const server = new Server(

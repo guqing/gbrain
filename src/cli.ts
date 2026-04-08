@@ -35,6 +35,12 @@ const main = defineCommand({
     serve: () => import("./commands/serve.ts").then((m) => m.default),
     "setup-mcp": () => import("./commands/setup-mcp.ts").then((m) => m.default),
     version: () => import("./commands/version.ts").then((m) => m.default),
+    delete: () => import("./commands/delete.ts").then((m) => m.default),
+    health: () => import("./commands/health.ts").then((m) => m.default),
+    sync: () => import("./commands/sync.ts").then((m) => m.default),
+    timeline: () => import("./commands/timeline.ts").then((m) => m.default),
+    graph: () => import("./commands/graph.ts").then((m) => m.default),
+    versions: () => import("./commands/versions.ts").then((m) => m.default),
   },
 });
 

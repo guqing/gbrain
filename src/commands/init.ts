@@ -1,6 +1,6 @@
 import { defineCommand } from "citty";
-import { existsSync } from "fs";
-import { resolve } from "path";
+import { existsSync, mkdirSync } from "fs";
+import { resolve, dirname } from "path";
 import { createDb, resolveDbPath } from "../core/db.ts";
 
 export default defineCommand({
@@ -36,6 +36,9 @@ export default defineCommand({
       console.log("  Use --db to specify a different path.");
       return;
     }
+
+    // Ensure parent directory exists
+    mkdirSync(dirname(dbPath), { recursive: true });
 
     createDb(dbPath);
     console.log(`✓ brain.db created at ${dbPath}`);
