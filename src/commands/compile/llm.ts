@@ -110,8 +110,9 @@ export async function callLlm(
   if (action !== "create" && action !== "update" && action !== "noise") {
     throw new Error(`LLM returned unknown action: ${action}`);
   }
+  // noise items don't need compiled_truth
   const compiled_truth = String(parsed["compiled_truth"] ?? "");
-  if (!compiled_truth) throw new Error("LLM returned empty compiled_truth");
+  if (action !== "noise" && !compiled_truth) throw new Error("LLM returned empty compiled_truth");
 
   return {
     action: action as CompileItem["action"],
