@@ -8,6 +8,7 @@ import type {
   PageVersion,
   BrainStats, BrainHealth,
   IngestLogEntry, IngestLogInput,
+  LintResult,
 } from '../types.ts';
 
 export interface BrainEngine {
@@ -58,6 +59,11 @@ export interface BrainEngine {
   // Stats + health
   getStats(): BrainStats;
   getHealth(): BrainHealth;
+  getLintReport(): LintResult;
+
+  // brain_meta KV
+  getMeta(key: string): string | null;
+  setMeta(key: string, value: string): void;
 
   // Ingest log
   logIngest(entry: IngestLogInput): void;

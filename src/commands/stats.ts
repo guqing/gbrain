@@ -24,6 +24,7 @@ export default defineCommand({
     for (const [type, n] of Object.entries(stats.byType)) {
       console.log(`  ${type.padEnd(12)} ${n}`);
     }
+    console.log(`Inbox:       ${stats.inbox_count}`);
     console.log(`Links:       ${stats.totalLinks}`);
     console.log(`Tags:        ${stats.totalTags}`);
     console.log(`Embeddings:  ${stats.totalEmbeddings}`);

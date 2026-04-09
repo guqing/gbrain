@@ -15,6 +15,11 @@ export interface GbrainConfig {
     model: string;
     dimensions: number;
   };
+  compile: {
+    base_url?: string;
+    api_key?: string;
+    model?: string;
+  };
 }
 
 // Allowed keys for `gbrain config set`
@@ -24,6 +29,9 @@ export const CONFIG_KEYS = [
   "embed.api_key",
   "embed.model",
   "embed.dimensions",
+  "compile.base_url",
+  "compile.api_key",
+  "compile.model",
 ] as const;
 export type ConfigKey = (typeof CONFIG_KEYS)[number];
 
@@ -47,6 +55,9 @@ const DEFAULTS: GbrainConfig = {
     model: "text-embedding-3-small",
     dimensions: 1536,
   },
+  compile: {
+    model: "gpt-4.1-mini",
+  },
 };
 
 // ── Tilde expansion ───────────────────────────────────────────────────────────
@@ -63,6 +74,7 @@ function expandTilde(p: string): string {
 interface PartialConfig {
   db?: { path?: string };
   embed?: { base_url?: string; api_key?: string; model?: string; dimensions?: number };
+  compile?: { base_url?: string; api_key?: string; model?: string };
 }
 
 // ── Read ──────────────────────────────────────────────────────────────────────
@@ -94,6 +106,14 @@ function readTomlFile(): PartialConfig {
       if (typeof embed["dimensions"] === "number")  result.embed.dimensions = embed["dimensions"] as number;
     }
 
+    const compile = parsed["compile"] as Record<string, unknown> | undefined;
+    if (compile) {
+      result.compile = {};
+      if (typeof compile["base_url"] === "string") result.compile.base_url = compile["base_url"];
+      if (typeof compile["api_key"] === "string")  result.compile.api_key  = compile["api_key"];
+      if (typeof compile["model"] === "string")    result.compile.model    = compile["model"];
+    }
+
     return result;
   } catch (e) {
     console.warn(`⚠ Failed to parse ~/.gbrain/config.toml: ${e instanceof Error ? e.message : e}`);
@@ -119,6 +139,11 @@ export function loadConfig(overrides?: { db?: string }): GbrainConfig {
       api_key:    process.env["OPENAI_API_KEY"]   ?? file.embed?.api_key   ?? DEFAULTS.embed.api_key,
       model:      file.embed?.model      ?? DEFAULTS.embed.model,
       dimensions: file.embed?.dimensions ?? DEFAULTS.embed.dimensions,
+    },
+    compile: {
+      base_url: file.compile?.base_url ?? file.embed?.base_url ?? process.env["OPENAI_BASE_URL"],
+      api_key:  file.compile?.api_key  ?? file.embed?.api_key  ?? process.env["OPENAI_API_KEY"],
+      model:    file.compile?.model    ?? DEFAULTS.compile.model,
     },
   };
 
@@ -193,6 +218,31 @@ export function listConfig(overrides?: { db?: string }): ConfigEntry[] {
     source: file.embed?.dimensions !== undefined ? "config" : "default",
   });
 
+  // compile.base_url
+  const cbuVal = file.compile?.base_url ?? file.embed?.base_url ?? process.env["OPENAI_BASE_URL"] ?? "";
+  entries.push({
+    key: "compile.base_url",
+    value: cbuVal,
+    source: file.compile?.base_url ? "config" : (file.embed?.base_url ? "config (embed)" : (process.env["OPENAI_BASE_URL"] ? "env: OPENAI_BASE_URL" : "default")),
+  });
+
+  // compile.api_key
+  const cRawKey = file.compile?.api_key ?? file.embed?.api_key ?? process.env["OPENAI_API_KEY"] ?? "";
+  const cRedacted = cRawKey.length > 4 ? cRawKey.slice(0, 4) + "****" : cRawKey ? "****" : "";
+  entries.push({
+    key: "compile.api_key",
+    value: cRedacted,
+    source: file.compile?.api_key ? "config" : (file.embed?.api_key ? "config (embed)" : (process.env["OPENAI_API_KEY"] ? "env: OPENAI_API_KEY" : "default")),
+  });
+
+  // compile.model
+  const cModelVal = file.compile?.model ?? DEFAULTS.compile.model ?? "";
+  entries.push({
+    key: "compile.model",
+    value: cModelVal,
+    source: file.compile?.model ? "config" : "default",
+  });
+
   return entries;
 }
 
@@ -223,13 +273,14 @@ export function setConfigKey(key: ConfigKey, value: string): void {
 
   // Read current raw file (if exists) into a plain object
   const cfgPath = getConfigPath();
-  let raw: Record<string, Record<string, string | number>> = { db: {}, embed: {} };
+  let raw: Record<string, Record<string, string | number>> = { db: {}, embed: {}, compile: {} };
 
   if (existsSync(cfgPath)) {
     try {
       const parsed = TOML.parse(readFileSync(cfgPath, "utf-8"), { bigint: false }) as Record<string, unknown>;
       if (parsed["db"]) raw["db"] = parsed["db"] as Record<string, string>;
       if (parsed["embed"]) raw["embed"] = parsed["embed"] as Record<string, string | number>;
+      if (parsed["compile"]) raw["compile"] = parsed["compile"] as Record<string, string | number>;
     } catch {
       // ignore parse errors — we'll overwrite
     }

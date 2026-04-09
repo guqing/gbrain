@@ -1,6 +1,7 @@
 import { defineCommand } from "citty";
 import { openDb, resolveDbPath } from "../core/db.ts";
 import { SqliteEngine } from "../core/sqlite-engine.ts";
+import { generateInboxSlug, slugify, deconflictSlug } from "../core/utils.ts";
 import { readdirSync, readFileSync, existsSync } from "fs";
 import { join, basename } from "path";
 import { homedir } from "os";
@@ -73,16 +74,6 @@ function buildConversation(messages: ClaudeMessage[]): Array<{ role: string; tex
   return turns;
 }
 
-function slugify(text: string, maxLen = 50): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .trim()
-    .replace(/\s+/g, "-")
-    .slice(0, maxLen)
-    .replace(/-+$/, "");
-}
-
 function extractKeyLearnings(turns: Array<{ role: string; text: string }>): string {
   // Collect assistant responses that look like substantial knowledge content
   const substantial = turns
@@ -126,7 +117,7 @@ function extractCopilotMeta(content: string): { overview: string; project: strin
 function harvestCopilot(
   engine: SqliteEngine,
   root: string,
-  opts: { project?: string; dryRun: boolean; limit: number }
+  opts: { project?: string; dryRun: boolean; limit: number; useInbox: boolean }
 ): { created: number; updated: number } {
   const all = collectCopilotCheckpoints(root, opts.project)
     .sort((a, b) => b.file.localeCompare(a.file))
@@ -148,13 +139,10 @@ function harvestCopilot(
     const title = cp.title.slice(0, 80);
 
     if (opts.dryRun) {
-      console.log(`[DRY-RUN] Would create: ${slug}`);
+      console.log(`[DRY-RUN] Would ${opts.useInbox ? "inbox" : "create"}: ${slug}`);
       console.log(`  Project: ${project}  |  ${content.length} chars`);
       continue;
     }
-
-    const isExisting = !!engine.getPage(slug);
-    if (isExisting) engine.createVersion(slug);
 
     const today = new Date().toISOString().slice(0, 10);
     const mdContent = `---
@@ -177,17 +165,26 @@ ${overview ? `## Overview\n\n${overview}\n\n` : ""}## Full Checkpoint
 ${content}
 `;
 
-    engine.putPage(slug, {
-      type: "session",
-      title,
-      compiled_truth: mdContent,
-      timeline: "",
-      frontmatter: { type: "session", tags: ["harvest", "copilot-cli"], source: cp.path, harvested_at: today, confidence: 9 },
-    });
-    engine.logIngest({ source_type: "copilot-checkpoint", source_ref: cp.path, pages_updated: [slug], summary: `Copilot checkpoint: ${title}` });
-
-    if (isExisting) { updated++; } else { created++; }
-    console.log(`✓ ${isExisting ? "Updated" : "Created"}: ${slug}`);
+    if (opts.useInbox) {
+      const inboxSlug = deconflictSlug(generateInboxSlug(mdContent), (s) => !!engine.getPage(s));
+      engine.putPage(inboxSlug, { type: "inbox", title, compiled_truth: mdContent });
+      engine.logIngest({ source_type: "copilot-checkpoint", source_ref: cp.path, pages_updated: [inboxSlug], summary: `Copilot checkpoint → inbox: ${title}` });
+      created++;
+      console.log(`✓ Inbox: ${inboxSlug}`);
+    } else {
+      const isExisting = !!engine.getPage(slug);
+      if (isExisting) engine.createVersion(slug);
+      engine.putPage(slug, {
+        type: "session",
+        title,
+        compiled_truth: mdContent,
+        timeline: "",
+        frontmatter: { type: "session", tags: ["harvest", "copilot-cli"], source: cp.path, harvested_at: today, confidence: 9 },
+      });
+      engine.logIngest({ source_type: "copilot-checkpoint", source_ref: cp.path, pages_updated: [slug], summary: `Copilot checkpoint: ${title}` });
+      if (isExisting) { updated++; } else { created++; }
+      console.log(`✓ ${isExisting ? "Updated" : "Created"}: ${slug}`);
+    }
   }
   return { created, updated };
 }
@@ -257,7 +254,7 @@ function parseCodexSession(path: string): { cwd: string; task: string; turns: st
 function harvestCodex(
   engine: SqliteEngine,
   root: string,
-  opts: { dryRun: boolean; limit: number }
+  opts: { dryRun: boolean; limit: number; useInbox: boolean }
 ): { created: number; updated: number } {
   const all = collectCodexSessions(root)
     .sort((a, b) => b.file.localeCompare(a.file))
@@ -281,13 +278,10 @@ function harvestCodex(
     const today = new Date().toISOString().slice(0, 10);
 
     if (opts.dryRun) {
-      console.log(`[DRY-RUN] Would create: ${slug}`);
+      console.log(`[DRY-RUN] Would ${opts.useInbox ? "inbox" : "create"}: ${slug}`);
       console.log(`  Task: ${title.slice(0, 60)}  |  ${turns.length} turns`);
       continue;
     }
-
-    const isExisting = !!engine.getPage(slug);
-    if (isExisting) engine.createVersion(slug);
 
     const learnings = turns.join("\n\n---\n\n");
     const mdContent = `---
@@ -310,17 +304,26 @@ confidence: 6
 ${learnings}
 `;
 
-    engine.putPage(slug, {
-      type: "session",
-      title,
-      compiled_truth: mdContent,
-      timeline: "",
-      frontmatter: { type: "session", tags: ["harvest", "codex"], source: session.path, harvested_at: today, confidence: 6 },
-    });
-    engine.logIngest({ source_type: "codex-session", source_ref: session.path, pages_updated: [slug], summary: `Codex: ${title}` });
-
-    if (isExisting) { updated++; } else { created++; }
-    console.log(`✓ ${isExisting ? "Updated" : "Created"}: ${slug}`);
+    if (opts.useInbox) {
+      const inboxSlug = deconflictSlug(generateInboxSlug(mdContent), (s) => !!engine.getPage(s));
+      engine.putPage(inboxSlug, { type: "inbox", title, compiled_truth: mdContent });
+      engine.logIngest({ source_type: "codex-session", source_ref: session.path, pages_updated: [inboxSlug], summary: `Codex → inbox: ${title}` });
+      created++;
+      console.log(`✓ Inbox: ${inboxSlug}`);
+    } else {
+      const isExisting = !!engine.getPage(slug);
+      if (isExisting) engine.createVersion(slug);
+      engine.putPage(slug, {
+        type: "session",
+        title,
+        compiled_truth: mdContent,
+        timeline: "",
+        frontmatter: { type: "session", tags: ["harvest", "codex"], source: session.path, harvested_at: today, confidence: 6 },
+      });
+      engine.logIngest({ source_type: "codex-session", source_ref: session.path, pages_updated: [slug], summary: `Codex: ${title}` });
+      if (isExisting) { updated++; } else { created++; }
+      console.log(`✓ ${isExisting ? "Updated" : "Created"}: ${slug}`);
+    }
   }
   return { created, updated };
 }
@@ -330,7 +333,7 @@ ${learnings}
 function harvestClaude(
   engine: SqliteEngine,
   claudeRoot: string,
-  opts: { project?: string; dryRun: boolean; limit: number }
+  opts: { project?: string; dryRun: boolean; limit: number; useInbox: boolean }
 ): { created: number; updated: number } {
   if (!existsSync(claudeRoot)) {
     console.error(`✗ Claude projects directory not found: ${claudeRoot}`);
@@ -382,13 +385,10 @@ function harvestClaude(
     const today = new Date().toISOString().slice(0, 10);
 
     if (opts.dryRun) {
-      console.log(`[DRY-RUN] Would ${engine.getPage(slug) ? "update" : "create"}: ${slug}`);
+      console.log(`[DRY-RUN] Would ${opts.useInbox ? "inbox" : (engine.getPage(slug) ? "update" : "create")}: ${slug}`);
       console.log(`  Title: ${title}  |  Turns: ${turns.length}`);
       continue;
     }
-
-    const isExisting = !!engine.getPage(slug);
-    if (isExisting) engine.createVersion(slug);
 
     const content = `---
 title: "${title.replace(/"/g, '\\"')}"
@@ -414,17 +414,26 @@ ${learnings}
 ${turns.slice(0, 6).map(t => `**${t.role}:** ${t.text.slice(0, 300)}${t.text.length > 300 ? "..." : ""}`).join("\n\n")}
 `;
 
-    engine.putPage(slug, {
-      type: "session",
-      title,
-      compiled_truth: content,
-      timeline: "",
-      frontmatter: { type: "session", tags: ["harvest", "claude-code"], source: session.path, harvested_at: dateStr, confidence: 7 },
-    });
-    engine.logIngest({ source_type: "claude-session", source_ref: session.path, pages_updated: [slug], summary: `Harvested ${turns.length} turns from ${projectName}` });
-
-    if (isExisting) { updated++; } else { created++; }
-    console.log(`✓ ${isExisting ? "Updated" : "Created"}: ${slug}`);
+    if (opts.useInbox) {
+      const inboxSlug = deconflictSlug(generateInboxSlug(content), (s) => !!engine.getPage(s));
+      engine.putPage(inboxSlug, { type: "inbox", title, compiled_truth: content });
+      engine.logIngest({ source_type: "claude-session", source_ref: session.path, pages_updated: [inboxSlug], summary: `Claude → inbox: ${turns.length} turns from ${projectName}` });
+      created++;
+      console.log(`✓ Inbox: ${inboxSlug}`);
+    } else {
+      const isExisting = !!engine.getPage(slug);
+      if (isExisting) engine.createVersion(slug);
+      engine.putPage(slug, {
+        type: "session",
+        title,
+        compiled_truth: content,
+        timeline: "",
+        frontmatter: { type: "session", tags: ["harvest", "claude-code"], source: session.path, harvested_at: dateStr, confidence: 7 },
+      });
+      engine.logIngest({ source_type: "claude-session", source_ref: session.path, pages_updated: [slug], summary: `Harvested ${turns.length} turns from ${projectName}` });
+      if (isExisting) { updated++; } else { created++; }
+      console.log(`✓ ${isExisting ? "Updated" : "Created"}: ${slug}`);
+    }
   }
   return { created, updated };
 }
@@ -439,6 +448,7 @@ export default defineCommand({
     dir:      { type: "string",  description: "Override default session directory" },
     project:  { type: "string",  description: "Filter to a specific project name" },
     "dry-run":{ type: "boolean", description: "Preview what would be created without writing", default: false },
+    direct:   { type: "boolean", description: "Write directly to brain (skip inbox, old behavior)", default: false },
     limit:    { type: "string",  description: "Max sessions/checkpoints to process (default: 50)" },
   },
   run({ args }) {
@@ -446,7 +456,13 @@ export default defineCommand({
     const home = homedir();
     const source = (args.source ?? "claude") as string;
     const dryRun = args["dry-run"] as boolean;
+    const direct = args.direct as boolean;
+    const useInbox = !direct;
     const limit = parseInt(String(args.limit ?? "50"), 10);
+
+    if (useInbox && !dryRun) {
+      console.log(`ℹ  Writing to inbox (use --direct to write directly to brain).\n   Run 'gbrain compile' to process captured items.\n`);
+    }
 
     let totalCreated = 0, totalUpdated = 0;
 
@@ -455,7 +471,7 @@ export default defineCommand({
       console.log(`\n── Copilot CLI checkpoints ────────────────────────────`);
       console.log(`  Source: ${root}`);
       console.log(`  No LLM required — checkpoints are pre-structured summaries.\n`);
-      const { created, updated } = harvestCopilot(engine, root, { project: args.project, dryRun, limit });
+      const { created, updated } = harvestCopilot(engine, root, { project: args.project, dryRun, limit, useInbox });
       totalCreated += created; totalUpdated += updated;
     }
 
@@ -463,7 +479,7 @@ export default defineCommand({
       const root = args.dir ?? join(home, ".codex", "sessions");
       console.log(`\n── Codex sessions ─────────────────────────────────────`);
       console.log(`  Source: ${root}`);
-      const { created, updated } = harvestCodex(engine, root, { dryRun, limit });
+      const { created, updated } = harvestCodex(engine, root, { dryRun, limit, useInbox });
       totalCreated += created; totalUpdated += updated;
     }
 
@@ -471,14 +487,19 @@ export default defineCommand({
       const root = args.dir ?? join(home, ".claude", "projects");
       console.log(`\n── Claude Code sessions ───────────────────────────────`);
       console.log(`  Source: ${root}\n`);
-      const { created, updated } = harvestClaude(engine, root, { project: args.project, dryRun, limit });
+      const { created, updated } = harvestClaude(engine, root, { project: args.project, dryRun, limit, useInbox });
       totalCreated += created; totalUpdated += updated;
     }
 
     if (!dryRun) {
-      console.log(`\n✓ Harvest complete: ${totalCreated} created, ${totalUpdated} updated.`);
-      if (totalCreated + totalUpdated > 0) {
-        console.log(`  Run 'gbrain embed --all' to generate embeddings for semantic search.`);
+      if (useInbox) {
+        console.log(`\n✓ Harvest complete: ${totalCreated} items added to inbox.`);
+        console.log(`  Run 'gbrain inbox' to review, 'gbrain compile' to process.`);
+      } else {
+        console.log(`\n✓ Harvest complete: ${totalCreated} created, ${totalUpdated} updated.`);
+        if (totalCreated + totalUpdated > 0) {
+          console.log(`  Run 'gbrain embed --all' to generate embeddings for semantic search.`);
+        }
       }
     }
   },

@@ -484,6 +484,7 @@ export class SqliteEngine implements BrainEngine {
       totalEmbeddings,
       totalIngestLog,
       dbSizeBytes: 0,
+      inbox_count: byType['inbox'] ?? 0,
       page_count: totalPages,
       chunk_count: this.db.query<{ n: number }, []>("SELECT COUNT(*) as n FROM content_chunks").get()?.n ?? 0,
       embedded_count: totalEmbeddings,
@@ -582,5 +583,88 @@ export class SqliteEngine implements BrainEngine {
       "INSERT OR REPLACE INTO config (key, value) VALUES (?,?)",
       [key, value]
     );
+  }
+
+  // ── brain_meta ────────────────────────────────────────────────────────────
+
+  getMeta(key: string): string | null {
+    const row = this.db.query<{ value: string }, [string]>(
+      "SELECT value FROM brain_meta WHERE key = ?"
+    ).get(key);
+    return row?.value ?? null;
+  }
+
+  setMeta(key: string, value: string): void {
+    this.db.run(
+      "INSERT OR REPLACE INTO brain_meta (key, value) VALUES (?,?)",
+      [key, value]
+    );
+  }
+
+  // ── Lint report ───────────────────────────────────────────────────────────
+
+  getLintReport(): import('../types.ts').LintResult {
+    const today = new Date().toISOString().slice(0, 10)!;
+    const allPages = this.listPages({ limit: 10000 });
+    const stale: import('../types.ts').StaleItem[] = [];
+    const lowConfidence: import('../types.ts').LowConfidenceItem[] = [];
+
+    for (const page of allPages) {
+      // Skip inbox items — they're raw, not knowledge pages
+      if (page.type === 'inbox') continue;
+      const fm = page.frontmatter as { valid_until?: string; confidence?: number };
+      if (fm.valid_until && fm.valid_until < today) {
+        stale.push({ slug: page.slug, title: page.title, valid_until: fm.valid_until, confidence: fm.confidence });
+      }
+      if (fm.confidence !== undefined && fm.confidence < 5) {
+        lowConfidence.push({ slug: page.slug, title: page.title, confidence: fm.confidence });
+      }
+    }
+
+    // Orphans: pages with no outgoing or incoming links (excluding inbox)
+    // Single query — O(1) instead of O(n) flatMap
+    const linkedSlugsRows = this.db.query<{ slug: string }, []>(
+      `SELECT DISTINCT p.slug FROM pages p
+       INNER JOIN links l ON l.from_page_id = p.id OR l.to_page_id = p.id
+       WHERE p.type != 'inbox'`
+    ).all();
+    const linkedSlugs = new Set(linkedSlugsRows.map(r => r.slug));
+    const orphans = allPages
+      .filter(p => p.type !== 'inbox' && !linkedSlugs.has(p.slug))
+      .map(p => p.slug);
+
+    // Suggested: [[wiki-links]] mentioned but no page exists
+    const existingSlugs = new Set(allPages.map(p => p.slug));
+    const mentionCounts = new Map<string, number>();
+    for (const page of allPages) {
+      if (page.type === 'inbox') continue;
+      const content = page.compiled_truth + " " + (page.timeline ?? "");
+      for (const match of content.matchAll(/\[\[([^\]]+)\]\]/g)) {
+        const slug = (match[1] ?? "").trim();
+        if (!existingSlugs.has(slug)) {
+          mentionCounts.set(slug, (mentionCounts.get(slug) ?? 0) + 1);
+        }
+      }
+    }
+    const suggested: import('../types.ts').SuggestedItem[] = [...mentionCounts.entries()]
+      .filter(([, count]) => count >= 2)
+      .sort((a, b) => b[1] - a[1])
+      .map(([slug, mentionCount]) => ({ slug, mentionCount }));
+
+    // Inbox queue
+    const inboxRow = this.db.query<{ count: number; oldest: string | null }, []>(
+      `SELECT COUNT(*) as count, MIN(created_at) as oldest FROM pages WHERE type = 'inbox'`
+    ).get();
+
+    return {
+      stale,
+      lowConfidence,
+      orphans,
+      suggested,
+      inbox_queue: {
+        count: inboxRow?.count ?? 0,
+        oldest_date: inboxRow?.oldest ?? null,
+      },
+    };
   }
 }

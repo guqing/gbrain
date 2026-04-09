@@ -28,7 +28,10 @@ export const COMMAND_HELP: Record<string, string> = {
   versions:  "Usage: gbrain versions <slug>\n\nList saved versions for a page.",
   embed:     "Usage: gbrain embed [<slug>] [--all]\n\nGenerate text embeddings via configured provider. Set embed.api_key with: gbrain config set embed.api_key <key>.",
   sync:      "Usage: gbrain sync\n\nEmbed all pages that are missing embeddings.",
-  harvest:   "Usage: gbrain harvest [<dir>]\n\nCompile Claude Code JSONL session logs into brain pages via Claude Haiku. Requires ANTHROPIC_API_KEY.",
+  harvest:   "Usage: gbrain harvest [--source claude|copilot|codex|all] [--direct] [--dry-run]\n\nHarvest learnings from AI session logs into inbox (or directly with --direct).",
+  capture:   "Usage: gbrain capture <text>\n\nCapture a quick note to the inbox for later compilation.",
+  inbox:     "Usage: gbrain inbox\n\nShow queued inbox items (count, token estimate, oldest date).",
+  compile:   "Usage: gbrain compile [--limit N] [--yes] [--interactive]\n\nProcess inbox items via LLM into structured knowledge pages.",
   digest:    "Usage: gbrain digest <conversations.json> [--all]\n\nCompile ChatGPT export conversations into brain pages via Claude Haiku. Requires ANTHROPIC_API_KEY.",
   export:    "Usage: gbrain export [--dir <path>]\n\nExport all pages to a markdown directory (round-trip safe).",
   import:    "Usage: gbrain import <path>\n\nImport a markdown file or directory (idempotent via content hash).",
@@ -69,6 +72,9 @@ const main = defineCommand({
     sync:        () => import("./commands/sync.ts").then((m) => m.default),
     // AI ingest
     harvest:     () => import("./commands/harvest.ts").then((m) => m.default),
+    capture:     () => import("./commands/capture.ts").then((m) => m.default),
+    inbox:       () => import("./commands/inbox.ts").then((m) => m.default),
+    compile:     () => import("./commands/compile/index.ts").then((m) => m.default),
     digest:      () => import("./commands/digest.ts").then((m) => m.default),
     // Import / Export
     export:      () => import("./commands/export.ts").then((m) => m.default),

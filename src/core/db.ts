@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS pages (
   timeline       TEXT    NOT NULL DEFAULT '',
   frontmatter    TEXT    NOT NULL DEFAULT '{}',
   content_hash   TEXT,
+  compiled_at    INTEGER,
   created_at     TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
   updated_at     TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
@@ -157,6 +158,11 @@ INSERT OR IGNORE INTO config (key, value) VALUES
   ('version', '2'),
   ('embedding_model', 'text-embedding-3-small'),
   ('chunk_strategy', 'recursive');
+
+CREATE TABLE IF NOT EXISTS brain_meta (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 `;
 
 export function resolveDbPath(flagPath?: string): string {
@@ -172,6 +178,9 @@ export function migrateDb(db: Database): void {
   const pagesColumns = new Set(pagesInfo.map(r => r.name));
   if (!pagesColumns.has('content_hash')) {
     db.exec("ALTER TABLE pages ADD COLUMN content_hash TEXT");
+  }
+  if (!pagesColumns.has('compiled_at')) {
+    db.exec("ALTER TABLE pages ADD COLUMN compiled_at INTEGER");
   }
 
   // Add link_type to links if missing
@@ -237,6 +246,11 @@ export function migrateDb(db: Database): void {
     );
 
     CREATE TABLE IF NOT EXISTS config (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS brain_meta (
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );

@@ -8,10 +8,12 @@ import { Database } from "bun:sqlite";
 import { serializePage, parsePage } from "../core/markdown.ts";
 import { statSync } from "fs";
 import { SqliteEngine } from "../core/sqlite-engine.ts";
+import { VERSION } from "../version.ts";
+import { runCompile } from "../commands/compile/index.ts";
 
 export function createMcpServer(db: Database, dbPath: string): Server {
   const server = new Server(
-    { name: "gbrain", version: "0.2.0" },
+    { name: "gbrain", version: VERSION },
     { capabilities: { tools: {} } }
   );
   const engine = new SqliteEngine(db);
@@ -190,6 +192,16 @@ export function createMcpServer(db: Database, dbPath: string): Server {
         name: "brain_lint",
         description: "Get a detailed lint report: stale pages, low-confidence pages, orphaned pages",
         inputSchema: { type: "object", properties: {} },
+      },
+      {
+        name: "compile_inbox",
+        description: "Process inbox items through LLM to create/update knowledge pages",
+        inputSchema: {
+          type: "object",
+          properties: {
+            limit: { type: "number", description: "Max items to process (default 20)" },
+          },
+        },
       },
       {
         name: "brain_keyword_search",
@@ -393,25 +405,24 @@ export function createMcpServer(db: Database, dbPath: string): Server {
         return { content: [{ type: "text", text: lines.join("\n") }] };
       }
 
-      // --- brain_lint ---
+            // --- brain_lint ---
       if (name === "brain_lint") {
-        const today = new Date().toISOString().slice(0, 10)!;
-        const allPages = engine.listPages({ limit: 10000 });
-        const stale: string[] = [];
-        const lowConf: string[] = [];
-        for (const page of allPages) {
-          const fm = page.frontmatter as { valid_until?: string; confidence?: number };
-          if (fm.valid_until && fm.valid_until < today) stale.push(`${page.slug} (expires ${fm.valid_until})`);
-          if (fm.confidence !== undefined && fm.confidence < 5) lowConf.push(`${page.slug} (confidence ${fm.confidence})`);
-        }
-        const linkedSlugs = new Set(allPages.flatMap(p => engine.getLinks(p.slug).map(l => l.to_slug)));
-        const orphans = allPages.filter(p => !linkedSlugs.has(p.slug)).map(p => p.slug);
+        const report = engine.getLintReport();
         const parts = [
-          `Stale (${stale.length}): ${stale.join(", ") || "none"}`,
-          `Low confidence (${lowConf.length}): ${lowConf.join(", ") || "none"}`,
-          `Orphans (${orphans.length}): ${orphans.slice(0, 10).join(", ") || "none"}`,
+          `Stale (${report.stale.length}): ${report.stale.map(p => `${p.slug} (expires ${p.valid_until})`).join(", ") || "none"}`,
+          `Low confidence (${report.lowConfidence.length}): ${report.lowConfidence.map(p => `${p.slug} (confidence ${p.confidence})`).join(", ") || "none"}`,
+          `Orphans (${report.orphans.length}): ${report.orphans.slice(0, 10).join(", ") || "none"}`,
+          `Inbox queue: ${report.inbox_queue.count} items${report.inbox_queue.oldest_date ? ` (oldest: ${report.inbox_queue.oldest_date.slice(0, 10)})` : ""}`,
         ];
         return { content: [{ type: "text", text: parts.join("\n") }] };
+      }
+
+      // --- compile_inbox ---
+      if (name === "compile_inbox") {
+        const limit = (input["limit"] as number) ?? 20;
+        const result = await runCompile({ limit, yes: true, interactive: false, dbPath: dbPath });
+        const text = `Processed: ${result.processed}, Created: ${result.created}, Updated: ${result.updated}, Noise: ${result.noise}${result.errors.length ? `\nErrors: ${result.errors.join("; ")}` : ""}`;
+        return { content: [{ type: "text", text }] };
       }
 
       return { content: [{ type: "text", text: `Unknown tool: ${name}` }], isError: true };

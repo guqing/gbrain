@@ -19,6 +19,7 @@ export type PageType =
   | "person"
   | "project"
   | "source"
+  | "inbox"
   | string;
 
 export interface PageFrontmatter {
@@ -161,6 +162,7 @@ export interface BrainStats {
   totalEmbeddings: number;
   totalIngestLog: number;
   dbSizeBytes: number;
+  inbox_count: number;
   // New fields
   page_count?: number;
   chunk_count?: number;
@@ -201,6 +203,7 @@ export interface LintResult {
   lowConfidence: LowConfidenceItem[];
   orphans: string[];
   suggested: SuggestedItem[];
+  inbox_queue: { count: number; oldest_date: string | null };
 }
 
 export interface StaleItem {
@@ -219,4 +222,21 @@ export interface LowConfidenceItem {
 export interface SuggestedItem {
   slug: string;
   mentionCount: number;
+}
+
+// ── Compile Pipeline ──────────────────────────────────────────────────────────
+
+export interface CompileItem {
+  action: 'create' | 'update' | 'noise';
+  slug?: string;           // for 'create': new slug; for 'update': existing slug
+  title?: string;
+  compiled_truth: string;  // full page content (for create/update)
+  timeline_entry?: string; // append-only note (for update)
+  reasoning?: string;      // why LLM made this decision
+}
+
+export interface CompileResult {
+  updates: CompileItem[];
+  creates: CompileItem[];
+  noise: CompileItem[];
 }
