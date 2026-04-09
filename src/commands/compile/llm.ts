@@ -64,6 +64,7 @@ export async function callLlm(
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
+        "User-Agent": "claude-code/1.0",
       },
       body: JSON.stringify({
         model,
