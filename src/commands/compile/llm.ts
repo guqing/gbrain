@@ -53,9 +53,10 @@ export async function callLlm(
 
   const userPrompt = `<existing_pages>\n${pagesContext}\n</existing_pages>\n\n<user_content>\n${inboxContent}\n</user_content>`;
 
-  // 30s timeout — hard requirement from eng review (ADR-2)
+  // Dynamic timeout: large inputs (>2000 chars) get 90s, others get 30s
+  const timeoutMs = inboxContent.length > 2000 ? 90_000 : 30_000;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30_000);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   let res: Response;
   try {
@@ -73,7 +74,8 @@ export async function callLlm(
           { role: "user", content: userPrompt },
         ],
         temperature: 0.2,
-        max_tokens: 1024,
+        // Dynamic max_tokens: larger input needs larger output budget for summarization
+        max_tokens: Math.min(4096, Math.max(1024, Math.ceil(inboxContent.length / 4))),
       }),
       signal: controller.signal,
     });
