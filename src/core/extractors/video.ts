@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { writeFile, readFile, unlink } from "node:fs/promises";
+import { unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
@@ -33,9 +33,7 @@ export class VideoExtractor implements ContentExtractor {
     }
 
     try {
-      // Read extracted audio and pass to AudioExtractor
-      const audioBuffer = await readFile(tmpPath);
-      // Write to temp file with .wav extension so AudioExtractor can stat it
+      // AudioExtractor reads the temp wav file directly — no need to buffer it here.
       const audioChunks = await this.audioExtractor.extract(tmpPath, {
         ...opts,
         // Override MIME so AudioExtractor accepts the wav file
