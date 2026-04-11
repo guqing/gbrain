@@ -85,12 +85,17 @@ export interface ChunkInput {
 }
 
 export interface SearchResult {
+  result_kind?: 'page' | 'file';
   slug: string;
   page_id: number;
+  page_slug?: string;
+  file_slug?: string;
+  parent_page_slug?: string;
   title: string;
   type: string;
   chunk_text: string;
-  chunk_source: 'compiled_truth' | 'timeline';
+  chunk_source: 'compiled_truth' | 'timeline' | 'file_description';
+  provenance_summary?: string;
   score: number;
   stale: boolean;
   snippet?: string;

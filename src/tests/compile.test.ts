@@ -270,6 +270,7 @@ describe("runCompile", () => {
       limit: 10,
       yes: true,
       interactive: false,
+      compileConfig: COMPILE_CONFIG,
       fetchFn: mockFetch({
         action: "create",
         slug: "react-usestate",
@@ -316,6 +317,7 @@ describe("runCompile", () => {
       limit: 10,
       yes: true,
       interactive: false,
+      compileConfig: COMPILE_CONFIG,
       fetchFn: mockFetch({
         action: "noise",
         slug: null,

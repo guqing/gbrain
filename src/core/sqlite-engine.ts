@@ -13,6 +13,55 @@ import type {
 import { ftsSearch } from "./fts.ts";
 import { migrateDb } from "./db.ts";
 
+// ── File + Import types ────────────────────────────────────────────────────
+
+export interface FileRecord {
+  slug: string;
+  sha256: string;
+  file_path: string;
+  original_name: string | null;
+  mime_type: string;
+  size_bytes: number;
+  description: string | null;
+  created_at: string;
+}
+
+export interface FileAttachResult {
+  slug: string;
+  isDuplicate: boolean;
+}
+
+export interface FileReferenceMeta {
+  source_type?: string;
+  source_ref?: string;
+  source_item_id?: string;
+  source_role?: string;
+}
+
+export interface ImportRunRecord {
+  id: number;
+  source_type: string;
+  source_ref: string;
+  status: "running" | "completed" | "completed_with_errors" | "failed" | "interrupted";
+  total_items: number;
+  completed_items: number;
+  failed_items: number;
+  started_at: string;
+  finished_at: string | null;
+  summary: string;
+}
+
+export interface ImportCheckpointRecord {
+  source_type: string;
+  source_ref: string;
+  item_key: string;
+  item_type: string;
+  status: "completed" | "failed";
+  page_slug: string | null;
+  last_run_id: number | null;
+  updated_at: string;
+}
+
 function cosineSimilarity(a: Float32Array, b: Float32Array): number {
   let dot = 0, normA = 0, normB = 0;
   for (let i = 0; i < a.length; i++) {
@@ -142,22 +191,74 @@ export class SqliteEngine implements BrainEngine {
 
   searchKeyword(query: string, opts?: SearchOpts): SearchResult[] {
     const limit = opts?.limit ?? 10;
+    const results: SearchResult[] = [];
+
+    // Page FTS
     try {
       const ftsRows = ftsSearch(this.db, query, { type: opts?.type, limit });
-      return ftsRows.map(r => ({
-        slug: r.slug,
-        page_id: r.id,
-        title: r.title,
-        type: r.type,
-        chunk_text: r.snippet ?? '',
-        chunk_source: 'compiled_truth' as const,
-        score: r.score,
-        stale: false,
-        snippet: r.snippet,
-      }));
-    } catch {
-      return [];
-    }
+      for (const r of ftsRows) {
+        results.push({
+          result_kind: 'page',
+          slug: r.slug,
+          page_id: r.id,
+          page_slug: r.slug,
+          title: r.title,
+          type: r.type,
+          chunk_text: r.snippet ?? '',
+          chunk_source: 'compiled_truth' as const,
+          score: r.score,
+          stale: false,
+          snippet: r.snippet,
+        });
+      }
+    } catch { /* FTS error */ }
+
+    // File description FTS
+    try {
+      type FtsFileRow = {
+        file_slug: string;
+        title: string;
+        description: string | null;
+        rank: number;
+        parent_page_slug: string | null;
+        provenance_summary: string | null;
+      };
+      const fileRows = this.db.query<FtsFileRow, [string, number]>(
+        `SELECT
+           f.slug AS file_slug,
+           COALESCE(f.original_name, f.slug) AS title,
+           f.description,
+           fts.rank,
+           MIN(pf.page_slug) AS parent_page_slug,
+           MIN(fr.source_type || ':' || fr.source_ref) AS provenance_summary
+         FROM (SELECT rowid, rank FROM fts_files WHERE fts_files MATCH ?) fts
+         JOIN files f ON f.rowid = fts.rowid
+         LEFT JOIN page_files pf ON pf.file_slug = f.slug
+         LEFT JOIN file_references fr ON fr.file_slug = f.slug
+         GROUP BY f.slug
+         ORDER BY fts.rank LIMIT ?`,
+      ).all(query, limit);
+
+      for (const fr of fileRows) {
+        results.push({
+          result_kind: 'file',
+          slug: `file:${fr.file_slug}`,
+          page_id: -1,
+          file_slug: fr.file_slug,
+          parent_page_slug: fr.parent_page_slug ?? undefined,
+          title: fr.title,
+          type: 'file',
+          chunk_text: fr.description ?? '',
+          chunk_source: 'file_description' as const,
+          provenance_summary: fr.provenance_summary ?? undefined,
+          score: Math.abs(fr.rank),
+          stale: false,
+          snippet: fr.description?.slice(0, 200),
+        });
+      }
+    } catch { /* FTS files error */ }
+
+    return results.slice(0, limit);
   }
 
   searchVector(embedding: Float32Array, opts?: SearchOpts): SearchResult[] {
@@ -168,17 +269,86 @@ export class SqliteEngine implements BrainEngine {
       "SELECT id, page_id, chunk_text, chunk_source, embedding, model FROM content_chunks WHERE embedding IS NOT NULL"
     ).all();
 
-    if (chunks.length === 0) return [];
+    // File chunks
+    type FileChunkRow = { id: number; file_slug: string; chunk_text: string; embedding: Buffer; model: string };
+    const fileChunks = this.db.query<FileChunkRow, []>(
+      "SELECT id, file_slug, chunk_text, embedding, model FROM file_chunks WHERE embedding IS NOT NULL"
+    ).all();
 
-    const scored = chunks.map(c => {
+    if (chunks.length === 0 && fileChunks.length === 0) return [];
+
+    interface ScoredItem {
+      result: SearchResult;
+      score: number;
+      key: string;
+    }
+
+    const allScored: ScoredItem[] = [];
+
+    for (const c of chunks) {
       const vec = new Float32Array(c.embedding.buffer, c.embedding.byteOffset, c.embedding.byteLength / 4);
-      return { chunk: c, score: cosineSimilarity(embedding, vec) };
-    });
+      const score = cosineSimilarity(embedding, vec);
+      allScored.push({
+        key: `page:${c.page_id}`,
+        score,
+        result: {
+          result_kind: 'page',
+          slug: '', // filled after page lookup
+          page_id: c.page_id,
+          title: '',
+          type: '',
+          chunk_text: c.chunk_text,
+          chunk_source: c.chunk_source as 'compiled_truth' | 'timeline',
+          score,
+          stale: false,
+        },
+      });
+    }
 
-    scored.sort((a, b) => b.score - a.score);
-    const top = scored.slice(0, limit * 3);
+    for (const fc of fileChunks) {
+      const vec = new Float32Array(fc.embedding.buffer, fc.embedding.byteOffset, fc.embedding.byteLength / 4);
+      const score = cosineSimilarity(embedding, vec);
+      const pf = this.db.query<{ page_slug: string }, [string]>(
+        "SELECT page_slug FROM page_files WHERE file_slug = ? LIMIT 1"
+      ).get(fc.file_slug);
+      const fileRow = this.db.query<{ original_name: string | null; source_type: string | null; source_ref: string | null }, [string]>(
+        `SELECT f.original_name,
+                fr.source_type,
+                fr.source_ref
+         FROM files f
+         LEFT JOIN file_references fr ON fr.file_slug = f.slug
+         WHERE f.slug = ?
+         LIMIT 1`,
+      ).get(fc.file_slug);
+      const title = fileRow?.original_name ?? fc.file_slug;
+      const provenance_summary = fileRow?.source_type && fileRow?.source_ref
+        ? `${fileRow.source_type}:${fileRow.source_ref}`
+        : undefined;
+      allScored.push({
+        key: `file:${fc.file_slug}`,
+        score,
+        result: {
+          result_kind: 'file',
+          slug: `file:${fc.file_slug}`,
+          page_id: -1,
+          file_slug: fc.file_slug,
+          parent_page_slug: pf?.page_slug ?? undefined,
+          title,
+          type: 'file',
+          chunk_text: fc.chunk_text,
+          chunk_source: 'file_description' as const,
+          score,
+          stale: false,
+          provenance_summary,
+        },
+      });
+    }
 
-    const pageIds = [...new Set(top.map(t => t.chunk.page_id))];
+    allScored.sort((a, b) => b.score - a.score);
+    const top = allScored.slice(0, limit * 3);
+
+    // Resolve page slugs for page results
+    const pageIds = [...new Set(top.filter(t => t.result.page_id > 0).map(t => t.result.page_id))];
     const pages = new Map<number, { slug: string; title: string; type: string }>();
     for (const pid of pageIds) {
       const p = this.db.query<{ id: number; slug: string; title: string; type: string }, [number]>(
@@ -187,27 +357,24 @@ export class SqliteEngine implements BrainEngine {
       if (p) pages.set(pid, p);
     }
 
-    // Deduplicate: keep only the best-scoring chunk per page.
-    // Without this, one large page floods all N result slots (issue #22).
-    const seenPages = new Set<number>();
+    // Deduplicate by key (page_id for pages, file_slug for files)
+    const seen = new Set<string>();
     const results: SearchResult[] = [];
-    for (const { chunk, score } of top) {
-      if (seenPages.has(chunk.page_id)) continue;
-      const page = pages.get(chunk.page_id);
-      if (!page) continue;
-      if (opts?.type && page.type !== opts.type) continue;
-      if (opts?.exclude_slugs?.includes(page.slug)) continue;
-      seenPages.add(chunk.page_id);
-      results.push({
-        slug: page.slug,
-        page_id: chunk.page_id,
-        title: page.title,
-        type: page.type,
-        chunk_text: chunk.chunk_text,
-        chunk_source: chunk.chunk_source as 'compiled_truth' | 'timeline',
-        score,
-        stale: false,
-      });
+    for (const { key, score, result } of top) {
+      if (seen.has(key)) continue;
+      if (result.result_kind === 'page') {
+        const page = pages.get(result.page_id);
+        if (!page) continue;
+        if (opts?.type && page.type !== opts.type) continue;
+        if (opts?.exclude_slugs?.includes(page.slug)) continue;
+        result.slug = page.slug;
+        result.page_slug = page.slug;
+        result.title = page.title;
+        result.type = page.type;
+        result.score = score;
+      }
+      seen.add(key);
+      results.push(result);
       if (results.length >= limit) break;
     }
 
@@ -741,5 +908,225 @@ export class SqliteEngine implements BrainEngine {
         oldest_date: inboxRow?.oldest ?? null,
       },
     };
+  }
+
+  // ── File management ────────────────────────────────────────────────────────
+
+  attachFileRecord(
+    pageSlug: string,
+    fileRecord: Omit<FileRecord, 'created_at'>,
+  ): FileAttachResult {
+    const page = this.getPage(pageSlug);
+    if (!page) throw new Error(`Page not found: ${pageSlug}`);
+
+    // Dedup by sha256
+    const existing = this.db
+      .query<{ slug: string }, [string]>("SELECT slug FROM files WHERE sha256 = ? LIMIT 1")
+      .get(fileRecord.sha256);
+
+    let fileSlug: string;
+    let isDuplicate = false;
+
+    if (existing) {
+      fileSlug = existing.slug;
+      isDuplicate = true;
+    } else {
+      this.db.run(
+        `INSERT INTO files (slug, sha256, file_path, original_name, mime_type, size_bytes, description)
+         VALUES (?,?,?,?,?,?,?)`,
+        [
+          fileRecord.slug, fileRecord.sha256, fileRecord.file_path,
+          fileRecord.original_name ?? null, fileRecord.mime_type, fileRecord.size_bytes,
+          fileRecord.description ?? null,
+        ],
+      );
+      fileSlug = fileRecord.slug;
+    }
+
+    const maxOrder = this.db.query<{ max: number | null }, [string]>(
+      "SELECT MAX(display_order) as max FROM page_files WHERE page_slug = ?",
+    ).get(pageSlug)?.max ?? -1;
+
+    this.db.run(
+      `INSERT OR IGNORE INTO page_files (page_slug, file_slug, display_order)
+       VALUES (?,?,?)`,
+      [pageSlug, fileSlug, maxOrder + 1],
+    );
+
+    return { slug: fileSlug, isDuplicate };
+  }
+
+  recordFileReference(pageSlug: string, fileSlug: string, ref: FileReferenceMeta): void {
+    if (!ref.source_type || !ref.source_ref) return;
+    this.db.run(
+      `INSERT OR IGNORE INTO file_references
+         (page_slug, file_slug, source_type, source_ref, source_item_id, source_role)
+       VALUES (?,?,?,?,?,?)`,
+      [
+        pageSlug, fileSlug,
+        ref.source_type, ref.source_ref,
+        ref.source_item_id ?? "", ref.source_role ?? null,
+      ],
+    );
+  }
+
+  getFile(slug: string): FileRecord | null {
+    return this.db.query<FileRecord, [string]>(
+      "SELECT * FROM files WHERE slug = ? LIMIT 1",
+    ).get(slug) ?? null;
+  }
+
+  listFiles(pageSlug?: string): FileRecord[] {
+    if (pageSlug) {
+      return this.db.query<FileRecord, [string]>(
+        `SELECT f.* FROM files f
+         JOIN page_files pf ON pf.file_slug = f.slug
+         WHERE pf.page_slug = ?
+         ORDER BY pf.display_order`,
+      ).all(pageSlug);
+    }
+    return this.db.query<FileRecord, []>(
+      "SELECT * FROM files ORDER BY created_at DESC",
+    ).all();
+  }
+
+  detachFile(pageSlug: string, fileSlug: string, purge = false): string | null {
+    this.db.run(
+      "DELETE FROM page_files WHERE page_slug = ? AND file_slug = ?",
+      [pageSlug, fileSlug],
+    );
+    if (!purge) return null;
+
+    const refCount = this.db.query<{ n: number }, [string]>(
+      "SELECT COUNT(*) as n FROM page_files WHERE file_slug = ?",
+    ).get(fileSlug)?.n ?? 0;
+
+    if (refCount === 0) {
+      const f = this.db.query<{ file_path: string }, [string]>(
+        "SELECT file_path FROM files WHERE slug = ?",
+      ).get(fileSlug);
+      this.db.run("DELETE FROM files WHERE slug = ?", [fileSlug]);
+      this.db.run("DELETE FROM file_chunks WHERE file_slug = ?", [fileSlug]);
+      return f?.file_path ?? null;
+    }
+    return null;
+  }
+
+  setFileDescription(fileSlug: string, description: string): void {
+    const exists = this.db.query<{ rowid: number }, [string]>(
+      "SELECT rowid FROM files WHERE slug = ? LIMIT 1",
+    ).get(fileSlug);
+    if (!exists) throw new Error(`File not found: ${fileSlug}`);
+    this.db.run("UPDATE files SET description = ? WHERE slug = ?", [description, fileSlug]);
+  }
+
+  upsertFileChunk(fileSlug: string, chunkText: string, embedding: Float32Array, model: string): void {
+    const embBlob = Buffer.from(embedding.buffer);
+    this.db.run(
+      `INSERT OR REPLACE INTO file_chunks
+         (file_slug, chunk_index, chunk_text, embedding, model, embedded_at)
+       VALUES (?,0,?,?,?,strftime('%Y-%m-%dT%H:%M:%SZ','now'))`,
+      [fileSlug, chunkText, embBlob, model],
+    );
+  }
+
+  listUndescribedFiles(): FileRecord[] {
+    return this.db.query<FileRecord, []>(
+      "SELECT * FROM files WHERE description IS NULL ORDER BY created_at",
+    ).all();
+  }
+
+  // ── Import runs ────────────────────────────────────────────────────────────
+
+  createImportRun(sourceType: string, sourceRef: string, totalItems: number): ImportRunRecord {
+    const result = this.db.run(
+      `INSERT INTO import_runs (source_type, source_ref, status, total_items, completed_items, failed_items)
+       VALUES (?,?,'running',?,0,0)`,
+      [sourceType, sourceRef, totalItems],
+    );
+    const id = Number(result.lastInsertRowid);
+    return this.getImportRun(id)!;
+  }
+
+  getImportRun(runId: number): ImportRunRecord | null {
+    return this.db.query<ImportRunRecord, [number]>(
+      "SELECT * FROM import_runs WHERE id = ? LIMIT 1",
+    ).get(runId) ?? null;
+  }
+
+  listImportRuns(limit = 20): ImportRunRecord[] {
+    return this.db.query<ImportRunRecord, [number]>(
+      "SELECT * FROM import_runs ORDER BY started_at DESC LIMIT ?",
+    ).all(limit);
+  }
+
+  updateImportRunStatus(runId: number, status: ImportRunRecord["status"], summary?: string): void {
+    const finished = ["completed", "completed_with_errors", "failed", "interrupted"].includes(status)
+      ? "strftime('%Y-%m-%dT%H:%M:%SZ','now')"
+      : "NULL";
+    this.db.run(
+      `UPDATE import_runs SET status = ?, summary = COALESCE(?, summary),
+         finished_at = ${finished}
+       WHERE id = ?`,
+      [status, summary ?? null, runId],
+    );
+  }
+
+  updateImportRunCounts(runId: number, total: number, completed: number, failed: number): void {
+    this.db.run(
+      "UPDATE import_runs SET total_items = ?, completed_items = ?, failed_items = ? WHERE id = ?",
+      [total, completed, failed, runId],
+    );
+  }
+
+  upsertImportRunItem(
+    runId: number,
+    itemKey: string,
+    itemType: string,
+    status: string,
+    meta?: {
+      page_slug?: string;
+      error_code?: string;
+      error_message?: string;
+      retryable?: boolean;
+    },
+  ): void {
+    this.db.run(
+      `INSERT OR REPLACE INTO import_run_items
+         (import_run_id, item_key, item_type, status, page_slug, error_code, error_message, retryable)
+       VALUES (?,?,?,?,?,?,?,?)`,
+      [
+        runId, itemKey, itemType, status,
+        meta?.page_slug ?? null, meta?.error_code ?? null,
+        meta?.error_message ?? null, meta?.retryable ? 1 : 0,
+      ],
+    );
+  }
+
+  getImportCheckpoint(sourceType: string, sourceRef: string, itemKey: string): ImportCheckpointRecord | null {
+    return this.db.query<ImportCheckpointRecord, [string, string, string]>(
+      "SELECT * FROM import_checkpoints WHERE source_type = ? AND source_ref = ? AND item_key = ? LIMIT 1",
+    ).get(sourceType, sourceRef, itemKey) ?? null;
+  }
+
+  upsertImportCheckpoint(args: {
+    source_type: string;
+    source_ref: string;
+    item_key: string;
+    item_type: string;
+    status: "completed" | "failed";
+    page_slug?: string;
+    last_run_id?: number;
+  }): void {
+    this.db.run(
+      `INSERT OR REPLACE INTO import_checkpoints
+         (source_type, source_ref, item_key, item_type, status, page_slug, last_run_id,
+          updated_at)
+       VALUES (?,?,?,?,?,?,?,strftime('%Y-%m-%dT%H:%M:%SZ','now'))`,
+      [
+        args.source_type, args.source_ref, args.item_key, args.item_type,
+        args.status, args.page_slug ?? null, args.last_run_id ?? null,
+      ],
+    );
   }
 }
