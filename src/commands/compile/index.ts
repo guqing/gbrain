@@ -145,17 +145,17 @@ export async function runCompile(opts: RunCompileOpts): Promise<RunCompileResult
     // Step 2: find most similar existing knowledge pages
     let topPages: Array<{ slug: string; title: string; score: number }> = [];
     if (embedding) {
-      const results = engine.searchVector(embedding, { limit: 5, exclude_slugs: [] });
+      const results = engine.searchVector(embedding, { limit: 10, exclude_slugs: [] });
       topPages = results
-        .filter(r => r.type !== "inbox")
+        .filter(r => r.type === "concept")
         .slice(0, 3)
         .map(r => ({ slug: r.slug, title: r.title, score: r.score }));
     } else {
       // Fallback: FTS search
       const kws = item.compiled_truth.slice(0, 100);
-      const results = engine.searchKeyword(kws, { limit: 3 });
+      const results = engine.searchKeyword(kws, { limit: 10 });
       topPages = results
-        .filter(r => r.type !== "inbox")
+        .filter(r => r.type === "concept")
         .slice(0, 3)
         .map(r => ({ slug: r.slug, title: r.title, score: r.score }));
     }

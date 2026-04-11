@@ -8,13 +8,22 @@ export interface CompileConfig {
 }
 
 const SYSTEM_PROMPT = `You are a personal knowledge brain maintainer.
-You receive a raw note (inbox item) and a list of existing brain pages.
-Your job: determine if this note should CREATE a new page, UPDATE an existing one, or is NOISE.
+You receive a raw note (inbox item) and a list of existing concept pages.
+Your job: determine if this note should CREATE a new concept page, UPDATE an existing one, or is NOISE.
 
 Rules:
 - NOISE: the note is too vague, a reminder, or purely conversational with no durable knowledge.
-- UPDATE: the note substantially relates to an existing page (by title or content). Merge insights, append a timeline entry.
-- CREATE: the note contains durable knowledge not covered by existing pages. Suggest a kebab-case slug.
+- UPDATE: the note substantially relates to an existing CONCEPT page (similar topic). Merge new insights.
+- CREATE: the note contains durable knowledge not yet covered by existing pages. Suggest a kebab-case slug.
+
+IMPORTANT: Only session/raw notes are given to you. The update candidates shown are concept pages only.
+Never suggest updating a page that doesn't exist in the candidates list.
+
+When writing compiled_truth, PRESERVE:
+- Specific code snippets, CSS values, function names, version numbers
+- Concrete "how to" steps and gotchas (e.g. "outline: 2px solid #fff; outline-offset: 8px")
+- The actual solution, not just a description of the category ("use outline not box-shadow")
+Avoid abstracting away actionable details into generic category descriptions.
 
 Return ONLY valid JSON matching this schema (no markdown, no extra text):
 { "action": "create"|"update"|"noise", "slug": string|null, "title": string|null, "compiled_truth": string, "timeline_entry": string|null, "reasoning": string }`;
