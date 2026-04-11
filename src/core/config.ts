@@ -20,6 +20,11 @@ export interface GbrainConfig {
     api_key?: string;
     model?: string;
   };
+  vision: {
+    base_url?: string;
+    api_key?: string;
+    model: string;
+  };
 }
 
 // Allowed keys for `gbrain config set`
@@ -32,6 +37,9 @@ export const CONFIG_KEYS = [
   "compile.base_url",
   "compile.api_key",
   "compile.model",
+  "vision.base_url",
+  "vision.api_key",
+  "vision.model",
 ] as const;
 export type ConfigKey = (typeof CONFIG_KEYS)[number];
 
@@ -58,6 +66,9 @@ const DEFAULTS: GbrainConfig = {
   compile: {
     model: "gpt-4.1-mini",
   },
+  vision: {
+    model: "openai/gpt-4o",
+  },
 };
 
 // ── Tilde expansion ───────────────────────────────────────────────────────────
@@ -75,6 +86,7 @@ interface PartialConfig {
   db?: { path?: string };
   embed?: { base_url?: string; api_key?: string; model?: string; dimensions?: number };
   compile?: { base_url?: string; api_key?: string; model?: string };
+  vision?: { base_url?: string; api_key?: string; model?: string };
 }
 
 // ── Read ──────────────────────────────────────────────────────────────────────
@@ -114,6 +126,14 @@ function readTomlFile(): PartialConfig {
       if (typeof compile["model"] === "string")    result.compile.model    = compile["model"];
     }
 
+    const vision = parsed["vision"] as Record<string, unknown> | undefined;
+    if (vision) {
+      result.vision = {};
+      if (typeof vision["base_url"] === "string") result.vision.base_url = vision["base_url"];
+      if (typeof vision["api_key"] === "string")  result.vision.api_key  = vision["api_key"];
+      if (typeof vision["model"] === "string")    result.vision.model    = vision["model"];
+    }
+
     return result;
   } catch (e) {
     console.warn(`⚠ Failed to parse ~/.gbrain/config.toml: ${e instanceof Error ? e.message : e}`);
@@ -144,6 +164,11 @@ export function loadConfig(overrides?: { db?: string }): GbrainConfig {
       base_url: file.compile?.base_url ?? file.embed?.base_url ?? process.env["OPENAI_BASE_URL"],
       api_key:  file.compile?.api_key  ?? file.embed?.api_key  ?? process.env["OPENAI_API_KEY"],
       model:    file.compile?.model    ?? DEFAULTS.compile.model,
+    },
+    vision: {
+      base_url: file.vision?.base_url ?? file.embed?.base_url ?? process.env["OPENAI_BASE_URL"],
+      api_key:  file.vision?.api_key  ?? file.embed?.api_key  ?? process.env["OPENAI_API_KEY"],
+      model:    file.vision?.model    ?? DEFAULTS.vision.model,
     },
   };
 
@@ -273,7 +298,7 @@ export function setConfigKey(key: ConfigKey, value: string): void {
 
   // Read current raw file (if exists) into a plain object
   const cfgPath = getConfigPath();
-  let raw: Record<string, Record<string, string | number>> = { db: {}, embed: {}, compile: {} };
+  let raw: Record<string, Record<string, string | number>> = { db: {}, embed: {}, compile: {}, vision: {} };
 
   if (existsSync(cfgPath)) {
     try {
@@ -281,6 +306,7 @@ export function setConfigKey(key: ConfigKey, value: string): void {
       if (parsed["db"]) raw["db"] = parsed["db"] as Record<string, string>;
       if (parsed["embed"]) raw["embed"] = parsed["embed"] as Record<string, string | number>;
       if (parsed["compile"]) raw["compile"] = parsed["compile"] as Record<string, string | number>;
+      if (parsed["vision"]) raw["vision"] = parsed["vision"] as Record<string, string | number>;
     } catch {
       // ignore parse errors — we'll overwrite
     }

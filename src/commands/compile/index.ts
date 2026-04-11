@@ -1,7 +1,7 @@
 import { defineCommand } from "citty";
 import { openDb, resolveDbPath } from "../../core/db.ts";
 import { SqliteEngine } from "../../core/sqlite-engine.ts";
-import { loadConfig } from "../../core/config.ts";
+import { loadConfig, type GbrainConfig } from "../../core/config.ts";
 import { slugify, deconflictSlug } from "../../core/utils.ts";
 import { callLlm, type FetchFn } from "./llm.ts";
 import type { Page } from "../../types.ts";
@@ -100,6 +100,8 @@ export interface RunCompileOpts {
   yes: boolean;
   interactive: boolean;
   fetchFn?: FetchFn;
+  /** Override compile config (useful in tests to inject api_key without a real config file) */
+  compileConfig?: GbrainConfig["compile"];
 }
 
 export interface RunCompileResult {
@@ -114,6 +116,8 @@ export async function runCompile(opts: RunCompileOpts): Promise<RunCompileResult
   const config = loadConfig({ db: opts.dbPath });
   const db = openDb(config.db.path!);
   const engine = new SqliteEngine(db);
+
+  const compileConfig = opts.compileConfig ?? config.compile;
 
   const items = engine.listPages({ type: "inbox", limit: opts.limit });
   if (items.length === 0) {
@@ -166,7 +170,7 @@ export async function runCompile(opts: RunCompileOpts): Promise<RunCompileResult
       compileItem = await callLlm(
         item.compiled_truth,
         topPages.map(p => ({ slug: p.slug, title: p.title })),
-        config.compile,
+        compileConfig,
         opts.fetchFn,
       );
     } catch (err) {

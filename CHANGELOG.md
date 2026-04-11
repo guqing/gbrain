@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.5.0] — 2025-06-11
+
+### Added
+- **Multimodal file system** — New schema tables (`files`, `file_chunks`, `file_references`, `import_checkpoints`, `import_runs`) for tracking imported files with metadata, FTS5 full-text search, and vector embeddings.
+- **ChatGPT importer** (`gbrain import-chatgpt <dir>`) — Scans ChatGPT export archives, imports all conversations, and copies user-uploaded images into `~/.gbrain/files/`. Supports `--describe` flag to call a vision model (GPT-4o) and generate natural-language descriptions for each image.
+- **Vision description pipeline** — `gbrain describe <file>` calls the configured vision model and stores the description. Descriptions are indexed in FTS5 so images are searchable by their visual content.
+- **File management commands** — `gbrain files` lists imported files with size, type, and description status. `gbrain attach <path> <source>` manually attaches a file to a knowledge source. `gbrain detach <file>` removes a file record.
+- **Import history** — `gbrain imports` lists past import runs with status, conversation counts, and timestamps.
+- **Resume-safe imports** — `import_checkpoints` table tracks per-source progress so interrupted imports resume without re-processing completed conversations.
+- **Vision config** — New `[vision]` section in `config.toml` (`base_url`, `api_key`, `model`) for configuring any OpenAI-compatible vision provider.
+- **FTS5 trigger fix** — Fixed `bm25()` usage in `searchKeyword`; now uses a subquery join on `rowid` which is the correct SQLite FTS5 pattern.
+
+### Changed
+- Schema version bumped. `gbrain doctor` validates new tables.
+
+---
+
 ## [0.4.0] — 2025-05-xx
 
 ### Bug Fixes
