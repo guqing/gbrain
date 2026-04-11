@@ -25,6 +25,11 @@ export interface GbrainConfig {
     api_key?: string;
     model: string;
   };
+  /** Whisper-compatible transcription endpoint. Falls back to vision config if omitted. */
+  transcription?: {
+    base_url?: string;
+    api_key?: string;
+  };
 }
 
 // Allowed keys for `gbrain config set`
@@ -40,6 +45,8 @@ export const CONFIG_KEYS = [
   "vision.base_url",
   "vision.api_key",
   "vision.model",
+  "transcription.base_url",
+  "transcription.api_key",
 ] as const;
 export type ConfigKey = (typeof CONFIG_KEYS)[number];
 
@@ -87,6 +94,7 @@ interface PartialConfig {
   embed?: { base_url?: string; api_key?: string; model?: string; dimensions?: number };
   compile?: { base_url?: string; api_key?: string; model?: string };
   vision?: { base_url?: string; api_key?: string; model?: string };
+  transcription?: { base_url?: string; api_key?: string };
 }
 
 // ── Read ──────────────────────────────────────────────────────────────────────
@@ -134,6 +142,13 @@ function readTomlFile(): PartialConfig {
       if (typeof vision["model"] === "string")    result.vision.model    = vision["model"];
     }
 
+    const transcription = parsed["transcription"] as Record<string, unknown> | undefined;
+    if (transcription) {
+      result.transcription = {};
+      if (typeof transcription["base_url"] === "string") result.transcription.base_url = transcription["base_url"];
+      if (typeof transcription["api_key"] === "string")  result.transcription.api_key  = transcription["api_key"];
+    }
+
     return result;
   } catch (e) {
     console.warn(`⚠ Failed to parse ~/.gbrain/config.toml: ${e instanceof Error ? e.message : e}`);
@@ -170,6 +185,11 @@ export function loadConfig(overrides?: { db?: string }): GbrainConfig {
       api_key:  file.vision?.api_key  ?? file.embed?.api_key  ?? process.env["OPENAI_API_KEY"],
       model:    file.vision?.model    ?? DEFAULTS.vision.model,
     },
+    // Transcription defaults to vision config (same base_url + api_key) if not explicitly set.
+    transcription: {
+      base_url: file.transcription?.base_url ?? file.vision?.base_url ?? file.embed?.base_url ?? process.env["OPENAI_BASE_URL"],
+      api_key:  file.transcription?.api_key  ?? file.vision?.api_key  ?? file.embed?.api_key  ?? process.env["OPENAI_API_KEY"],
+    },
   };
 
   return cfg;
@@ -177,7 +197,7 @@ export function loadConfig(overrides?: { db?: string }): GbrainConfig {
 
 // ── Source tracking (for `gbrain config list`) ────────────────────────────────
 
-type ConfigSource = "flag" | `env: ${string}` | "config" | "default";
+type ConfigSource = "flag" | `env: ${string}` | "config" | "config (embed)" | "default";
 
 export interface ConfigEntry {
   key: string;
@@ -298,7 +318,7 @@ export function setConfigKey(key: ConfigKey, value: string): void {
 
   // Read current raw file (if exists) into a plain object
   const cfgPath = getConfigPath();
-  let raw: Record<string, Record<string, string | number>> = { db: {}, embed: {}, compile: {}, vision: {} };
+  let raw: Record<string, Record<string, string | number>> = { db: {}, embed: {}, compile: {}, vision: {}, transcription: {} };
 
   if (existsSync(cfgPath)) {
     try {
@@ -307,6 +327,7 @@ export function setConfigKey(key: ConfigKey, value: string): void {
       if (parsed["embed"]) raw["embed"] = parsed["embed"] as Record<string, string | number>;
       if (parsed["compile"]) raw["compile"] = parsed["compile"] as Record<string, string | number>;
       if (parsed["vision"]) raw["vision"] = parsed["vision"] as Record<string, string | number>;
+      if (parsed["transcription"]) raw["transcription"] = parsed["transcription"] as Record<string, string | number>;
     } catch {
       // ignore parse errors — we'll overwrite
     }

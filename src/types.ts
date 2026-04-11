@@ -94,7 +94,7 @@ export interface SearchResult {
   title: string;
   type: string;
   chunk_text: string;
-  chunk_source: 'compiled_truth' | 'timeline' | 'file_description';
+  chunk_source: 'compiled_truth' | 'timeline' | 'file_description' | 'description' | 'transcript' | string;
   provenance_summary?: string;
   score: number;
   stale: boolean;
