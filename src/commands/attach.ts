@@ -33,10 +33,10 @@ export default defineCommand({
       description: "Transcribe audio/video using Whisper API",
       default: false,
     },
-    "no-embed": {
+    embed: {
       type: "boolean",
-      description: "Skip embedding — store the file only",
-      default: false,
+      description: "Embed content after extraction (use --no-embed to skip)",
+      default: true,
     },
     json: { type: "boolean", description: "Output as JSON", default: false },
     db: { type: "string", description: "Path to brain.db" },
@@ -122,12 +122,7 @@ export default defineCommand({
     const isPdf = mime === "application/pdf";
     const isDocx = mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     const isAudioVideo = mime.startsWith("audio/") || mime.startsWith("video/");
-    const shouldExtract = !args["no-embed"] && (
-      args.describe ||
-      isPdf ||
-      isDocx ||
-      (isAudioVideo && args.transcribe)
-    );
+    const shouldExtract = args.describe || isPdf || isDocx || (isAudioVideo && args.transcribe);
 
     if (shouldExtract) {
       const fileLabel = isPdf ? "Extracting PDF" : isDocx ? "Extracting DOCX" : isAudioVideo ? "Transcribing" : "Describing";
@@ -137,6 +132,7 @@ export default defineCommand({
           visionCfg: cfg.vision,
           transcriptionBaseUrl: (cfg.transcription ?? cfg.vision)?.base_url,
           transcriptionApiKey: (cfg.transcription ?? cfg.vision)?.api_key,
+          skipEmbed: !args.embed,
         });
         processed = true;
       } catch (err) {

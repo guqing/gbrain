@@ -1101,7 +1101,7 @@ export class SqliteEngine implements BrainEngine {
   upsertFileChunks(
     fileSlug: string,
     chunks: Array<{ text: string; source: string }>,
-    embeddings: Float32Array[],
+    embeddings: Array<Float32Array | null>,
     model: string,
   ): void {
     if (chunks.length !== embeddings.length) {
@@ -1111,12 +1111,13 @@ export class SqliteEngine implements BrainEngine {
       this.db.run("DELETE FROM file_chunks WHERE file_slug = ?", [fileSlug]);
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i]!;
-        const embBlob = Buffer.from(embeddings[i]!.buffer);
+        const emb = embeddings[i];
+        const embBlob = emb ? Buffer.from(emb.buffer) : null;
         this.db.run(
           `INSERT INTO file_chunks
              (file_slug, chunk_index, chunk_text, chunk_source, embedding, model, embedded_at)
-           VALUES (?,?,?,?,?,?,strftime('%Y-%m-%dT%H:%M:%SZ','now'))`,
-          [fileSlug, i, chunk.text, chunk.source, embBlob, model],
+           VALUES (?,?,?,?,?,?,CASE WHEN ? IS NOT NULL THEN strftime('%Y-%m-%dT%H:%M:%SZ','now') ELSE NULL END)`,
+          [fileSlug, i, chunk.text, chunk.source, embBlob, model, embBlob],
         );
       }
     })();

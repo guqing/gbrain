@@ -20,6 +20,8 @@ export interface ProcessFileOpts {
   fetchFn?: FetchFn;
   transcriptionBaseUrl?: string;
   transcriptionApiKey?: string;
+  /** When true, extract and store text chunks but skip the embedding API call. */
+  skipEmbed?: boolean;
 }
 
 export interface ProcessFileResult {
@@ -90,23 +92,27 @@ export async function processFileContent(
   }
 
   const embedModel = EMBEDDING_MODEL();
-  let embeddings: Float32Array[];
-  try {
-    embeddings = await embedTexts(chunks.map(c => c.text));
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return {
-      file_slug: fileSlug,
-      chunks_stored: 0,
-      embedded: false,
-      warning: `Embedding failed: ${msg}`,
-    };
+  let embeddings: Array<Float32Array | null>;
+  if (opts.skipEmbed) {
+    embeddings = chunks.map(() => null);
+  } else {
+    try {
+      embeddings = await embedTexts(chunks.map(c => c.text));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return {
+        file_slug: fileSlug,
+        chunks_stored: 0,
+        embedded: false,
+        warning: `Embedding failed: ${msg}`,
+      };
+    }
   }
 
   engine.upsertFileChunks(fileSlug, chunks, embeddings, embedModel);
   engine.setProcessedAt(fileSlug);
 
-  return { file_slug: fileSlug, chunks_stored: chunks.length, embedded: true };
+  return { file_slug: fileSlug, chunks_stored: chunks.length, embedded: !opts.skipEmbed };
 }
 
 /**
