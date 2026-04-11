@@ -572,3 +572,87 @@ describe("chunks CRUD", () => {
     ).toThrow(/not found/);
   });
 });
+
+// ── setProcessedAt ────────────────────────────────────────────────────────────
+
+describe("setProcessedAt", () => {
+  test("marks a file as processed — processed_at becomes non-null", () => {
+    const engine = freshEngine();
+    engine.putPage("concepts/test-sp", { type: "concept", title: "T", compiled_truth: "# T" });
+    engine.attachFileRecord("concepts/test-sp", {
+      slug: "test-file-sp",
+      sha256: "deadbeefdeadbeef".repeat(4),
+      file_path: "test-file-sp.pdf",
+      original_name: "test-file-sp.pdf",
+      mime_type: "application/pdf",
+      size_bytes: 1024,
+      description: null,
+      processed_at: null,
+    });
+
+    const before = engine.getFile("test-file-sp")!;
+    expect(before.processed_at).toBeNull();
+
+    engine.setProcessedAt("test-file-sp");
+
+    const after = engine.getFile("test-file-sp")!;
+    expect(after.processed_at).not.toBeNull();
+    expect(after.processed_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+  });
+
+  test("silently no-ops for a non-existent file slug", () => {
+    const engine = freshEngine();
+    expect(() => engine.setProcessedAt("nonexistent-slug")).not.toThrow();
+  });
+});
+
+// ── listUnprocessedFiles ──────────────────────────────────────────────────────
+
+describe("listUnprocessedFiles", () => {
+  function attachFile(engine: SqliteEngine, slug: string) {
+    engine.putPage("concepts/lu-test", { type: "concept", title: "T", compiled_truth: "# T" });
+    engine.attachFileRecord("concepts/lu-test", {
+      slug,
+      sha256: slug.padEnd(64, "0"),
+      file_path: `${slug}.pdf`,
+      original_name: `${slug}.pdf`,
+      mime_type: "application/pdf",
+      size_bytes: 1024,
+      description: null,
+      processed_at: null,
+    });
+  }
+
+  test("returns all files when none are processed", () => {
+    const engine = freshEngine();
+    attachFile(engine, "lu-file-a");
+    attachFile(engine, "lu-file-b");
+
+    const unprocessed = engine.listUnprocessedFiles();
+    const slugs = unprocessed.map(f => f.slug);
+    expect(slugs).toContain("lu-file-a");
+    expect(slugs).toContain("lu-file-b");
+  });
+
+  test("excludes files once marked processed", () => {
+    const engine = freshEngine();
+    attachFile(engine, "lu-file-x");
+    attachFile(engine, "lu-file-y");
+
+    engine.setProcessedAt("lu-file-x");
+
+    const unprocessed = engine.listUnprocessedFiles();
+    const slugs = unprocessed.map(f => f.slug);
+    expect(slugs).not.toContain("lu-file-x");
+    expect(slugs).toContain("lu-file-y");
+  });
+
+  test("returns empty array when all files are processed", () => {
+    const engine = freshEngine();
+    attachFile(engine, "lu-file-z");
+    engine.setProcessedAt("lu-file-z");
+
+    const unprocessed = engine.listUnprocessedFiles();
+    expect(unprocessed).toHaveLength(0);
+  });
+});
