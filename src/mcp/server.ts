@@ -35,10 +35,13 @@ export function createMcpServer(db: Database, dbPath: string): Server {
       },
       {
         name: "brain_get",
-        description: "Read a page by slug — returns compiled_truth + timeline as markdown",
+        description: "Read a page by slug — returns compiled_truth + timeline as markdown. If slug not found, tries fuzzy match.",
         inputSchema: {
           type: "object",
-          properties: { slug: { type: "string", description: "Page slug" } },
+          properties: {
+            slug:  { type: "string", description: "Page slug" },
+            fuzzy: { type: "boolean", description: "If true, fall back to FTS5 search when exact slug not found" },
+          },
           required: ["slug"],
         },
       },
@@ -48,8 +51,9 @@ export function createMcpServer(db: Database, dbPath: string): Server {
         inputSchema: {
           type: "object",
           properties: {
-            slug:    { type: "string", description: "Page slug" },
-            content: { type: "string", description: "Full markdown content with YAML frontmatter" },
+            slug:     { type: "string", description: "Page slug" },
+            content:  { type: "string", description: "Full markdown content with YAML frontmatter" },
+            dry_run:  { type: "boolean", description: "Preview what would change without writing (default false)" },
           },
           required: ["slug", "content"],
         },
@@ -59,7 +63,10 @@ export function createMcpServer(db: Database, dbPath: string): Server {
         description: "Delete a page and all its links, tags, and embeddings",
         inputSchema: {
           type: "object",
-          properties: { slug: { type: "string", description: "Page slug to delete" } },
+          properties: {
+            slug:    { type: "string", description: "Page slug to delete" },
+            dry_run: { type: "boolean", description: "Preview what would be deleted without deleting (default false)" },
+          },
           required: ["slug"],
         },
       },
@@ -199,8 +206,31 @@ export function createMcpServer(db: Database, dbPath: string): Server {
         inputSchema: {
           type: "object",
           properties: {
-            limit: { type: "number", description: "Max items to process (default 20)" },
+            limit:   { type: "number",  description: "Max items to process (default 20)" },
+            dry_run: { type: "boolean", description: "Preview inbox count without processing (default false)" },
           },
+        },
+      },
+      {
+        name: "brain_hybrid_search",
+        description: "Hybrid search: FTS5 keyword + vector merged with Reciprocal Rank Fusion. Best overall search. Requires embed API key for the vector leg.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            query:     { type: "string", description: "Search query" },
+            type:      { type: "string", description: "Optional: filter by page type" },
+            limit:     { type: "number", description: "Max results (default 10)" },
+          },
+          required: ["query"],
+        },
+      },
+      {
+        name: "brain_export",
+        description: "Export a page as a standalone markdown file with YAML frontmatter (round-trip safe)",
+        inputSchema: {
+          type: "object",
+          properties: { slug: { type: "string", description: "Page slug" } },
+          required: ["slug"],
         },
       },
       {
@@ -239,9 +269,23 @@ export function createMcpServer(db: Database, dbPath: string): Server {
 
       // --- brain_get ---
       if (name === "brain_get") {
-        const page = engine.getPage(input["slug"] as string);
+        const slug = input["slug"] as string;
+        const fuzzy = !!(input["fuzzy"] as boolean | undefined);
+
+        if (fuzzy) {
+          const result = engine.getPageFuzzy(slug);
+          if (!result) {
+            return { content: [{ type: "text", text: `Page not found: ${slug} (fuzzy search also found nothing)` }], isError: true };
+          }
+          const prefix = result.resolved_slug !== slug
+            ? `<!-- resolved from "${slug}" to "${result.resolved_slug}" -->\n`
+            : '';
+          return { content: [{ type: "text", text: prefix + serializePage(result.page) }] };
+        }
+
+        const page = engine.getPage(slug);
         if (!page) {
-          return { content: [{ type: "text", text: `Page not found: ${input["slug"]}` }], isError: true };
+          return { content: [{ type: "text", text: `Page not found: ${slug}` }], isError: true };
         }
         return { content: [{ type: "text", text: serializePage(page) }] };
       }
@@ -250,8 +294,19 @@ export function createMcpServer(db: Database, dbPath: string): Server {
       if (name === "brain_put") {
         const slug = input["slug"] as string;
         const content = input["content"] as string;
+        const dry_run = !!(input["dry_run"] as boolean | undefined);
         const parsed = parsePage(content, slug);
         const isUpdate = !!engine.getPage(slug);
+
+        if (dry_run) {
+          return { content: [{ type: "text", text: JSON.stringify({
+            action: isUpdate ? 'update' : 'create',
+            slug,
+            would_create_version: isUpdate,
+            title: parsed.title,
+            type: parsed.type,
+          }, null, 2) }] };
+        }
 
         if (isUpdate) {
           engine.createVersion(slug);
@@ -269,9 +324,25 @@ export function createMcpServer(db: Database, dbPath: string): Server {
       // --- brain_delete ---
       if (name === "brain_delete") {
         const slug = input["slug"] as string;
-        if (!engine.getPage(slug)) {
+        const dry_run = !!(input["dry_run"] as boolean | undefined);
+        const page = engine.getPage(slug);
+        if (!page) {
           return { content: [{ type: "text", text: `Page not found: ${slug}` }], isError: true };
         }
+
+        if (dry_run) {
+          const links = engine.getLinks(slug);
+          const backlinks = engine.getBacklinks(slug);
+          const tags = engine.getTags(slug);
+          return { content: [{ type: "text", text: JSON.stringify({
+            would_delete: slug,
+            title: page.title,
+            outgoing_links: links.length,
+            incoming_links: backlinks.length,
+            tags: tags.length,
+          }, null, 2) }] };
+        }
+
         engine.deletePage(slug);
         return { content: [{ type: "text", text: `Deleted: ${slug}` }] };
       }
@@ -420,9 +491,40 @@ export function createMcpServer(db: Database, dbPath: string): Server {
       // --- compile_inbox ---
       if (name === "compile_inbox") {
         const limit = (input["limit"] as number) ?? 20;
+        const dry_run = !!(input["dry_run"] as boolean | undefined);
+
+        if (dry_run) {
+          const inboxPages = engine.listPages({ type: 'inbox', limit: 1000 });
+          return { content: [{ type: "text", text: JSON.stringify({
+            inbox_count: inboxPages.length,
+            would_process: Math.min(inboxPages.length, limit),
+            run: `gbrain compile --limit ${limit}`,
+          }, null, 2) }] };
+        }
+
         const result = await runCompile({ limit, yes: true, interactive: false, dbPath: dbPath });
         const text = `Processed: ${result.processed}, Created: ${result.created}, Updated: ${result.updated}, Noise: ${result.noise}${result.errors.length ? `\nErrors: ${result.errors.join("; ")}` : ""}`;
         return { content: [{ type: "text", text }] };
+      }
+
+      // --- brain_hybrid_search ---
+      if (name === "brain_hybrid_search") {
+        const query = input["query"] as string;
+        const limit = (input["limit"] as number | undefined) ?? 10;
+        const type = input["type"] as string | undefined;
+        // Vector leg: skip if no embedding configured (hybrid degrades gracefully to keyword-only)
+        const results = engine.hybridSearch(query, null, { limit, type });
+        return { content: [{ type: "text", text: JSON.stringify(results, null, 2) }] };
+      }
+
+      // --- brain_export ---
+      if (name === "brain_export") {
+        const slug = input["slug"] as string;
+        const page = engine.getPage(slug);
+        if (!page) {
+          return { content: [{ type: "text", text: `Page not found: ${slug}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: serializePage(page) }] };
       }
 
       return { content: [{ type: "text", text: `Unknown tool: ${name}` }], isError: true };

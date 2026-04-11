@@ -37,7 +37,8 @@ export const COMMAND_HELP: Record<string, string> = {
   import:    "Usage: gbrain import <path>\n\nImport a markdown file or directory (idempotent via content hash).",
   serve:     "Usage: gbrain serve\n\nStart MCP server on stdio. Connect via Claude Desktop or claude_mcp_config.json.",
   "setup-mcp": "Usage: gbrain setup-mcp\n\nGenerate claude_mcp_config.json for Claude Desktop integration.",
-  "tools-json": "Usage: gbrain tools-json\n\nPrint all MCP tool definitions as JSON (for agent tool discovery).",
+  doctor:      "Usage: gbrain doctor [--json]\n\nRun health checks on the brain database and configuration. Exit 1 on failures.",
+  "check-update": "Usage: gbrain check-update [--json]\n\nCheck for a newer version of gbrain on npm. Only notifies on minor/major bumps.",
 };
 
 const main = defineCommand({
@@ -86,6 +87,9 @@ const main = defineCommand({
     timeline:    () => import("./commands/timeline.ts").then((m) => m.default),
     graph:       () => import("./commands/graph.ts").then((m) => m.default),
     versions:    () => import("./commands/versions.ts").then((m) => m.default),
+    // Diagnostics
+    doctor:      () => import("./commands/doctor.ts").then((m) => m.default),
+    "check-update": () => import("./commands/check-update.ts").then((m) => m.default),
     // MCP server
     serve:       () => import("./commands/serve.ts").then((m) => m.default),
     // Agent tool discovery

@@ -1,0 +1,35 @@
+{
+  "version": "0.4.0",
+  "skills": [
+    {
+      "name": "briefing",
+      "path": "skills/briefing/SKILL.md",
+      "description": "Compile context from the brain before meetings, coding sessions, or project reviews."
+    },
+    {
+      "name": "digest",
+      "path": "skills/digest/SKILL.md",
+      "description": "Extract structured knowledge from ChatGPT conversation exports."
+    },
+    {
+      "name": "harvest",
+      "path": "skills/harvest/SKILL.md",
+      "description": "Extract learnings from Claude Code session logs and save them to the brain."
+    },
+    {
+      "name": "ingest",
+      "path": "skills/ingest/SKILL.md",
+      "description": "Import and harvest data into the brain."
+    },
+    {
+      "name": "maintain",
+      "path": "skills/maintain/SKILL.md",
+      "description": "Keep the brain healthy and up to date."
+    },
+    {
+      "name": "query",
+      "path": "skills/query/SKILL.md",
+      "description": "Search and retrieve knowledge from the brain."
+    }
+  ]
+}

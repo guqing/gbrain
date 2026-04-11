@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS content_chunks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_chunks_page ON content_chunks(page_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_chunks_page_chunk ON content_chunks(page_id, chunk_index);
 
 CREATE TABLE IF NOT EXISTS links (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -256,6 +257,24 @@ export function migrateDb(db: Database): void {
     );
   `);
 
+  // Add UNIQUE INDEX on content_chunks(page_id, chunk_index) for safe UPSERT.
+  // Without this, INSERT OR REPLACE falls back to INSERT (no dedup guarantee).
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_chunks_page_chunk
+    ON content_chunks(page_id, chunk_index);
+  `);
+
+  // Add config/brain_meta if missing (older DBs)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS config (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS brain_meta (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+  `);
   db.exec(`INSERT OR IGNORE INTO config (key, value) VALUES
     ('version', '2'),
     ('embedding_model', 'text-embedding-3-small'),

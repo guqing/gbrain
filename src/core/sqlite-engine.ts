@@ -52,6 +52,23 @@ export class SqliteEngine implements BrainEngine {
     return row ? rowToPage(row) : null;
   }
 
+  // Fuzzy slug resolution: returns the page AND the slug that was resolved.
+  // Falls back to FTS5 search on the slug text when exact match fails.
+  getPageFuzzy(slug: string): { page: Page; resolved_slug: string } | null {
+    const exact = this.getPage(slug);
+    if (exact) return { page: exact, resolved_slug: slug };
+
+    // Try FTS5 search using the slug tokens as a query
+    const query = slug.replace(/[-_/]/g, ' ').trim();
+    if (!query) return null;
+    const candidates = this.searchKeyword(query, { limit: 1 });
+    if (candidates.length === 0) return null;
+
+    const best = candidates[0]!;
+    const page = this.getPage(best.slug);
+    return page ? { page, resolved_slug: best.slug } : null;
+  }
+
   putPage(slug: string, input: PageInput): Page {
     const existing = this.db
       .query<{ id: number }, [string]>("SELECT id FROM pages WHERE slug = ? LIMIT 1")
@@ -170,12 +187,17 @@ export class SqliteEngine implements BrainEngine {
       if (p) pages.set(pid, p);
     }
 
+    // Deduplicate: keep only the best-scoring chunk per page.
+    // Without this, one large page floods all N result slots (issue #22).
+    const seenPages = new Set<number>();
     const results: SearchResult[] = [];
     for (const { chunk, score } of top) {
+      if (seenPages.has(chunk.page_id)) continue;
       const page = pages.get(chunk.page_id);
       if (!page) continue;
       if (opts?.type && page.type !== opts.type) continue;
       if (opts?.exclude_slugs?.includes(page.slug)) continue;
+      seenPages.add(chunk.page_id);
       results.push({
         slug: page.slug,
         page_id: chunk.page_id,
@@ -192,6 +214,53 @@ export class SqliteEngine implements BrainEngine {
     return results;
   }
 
+  // Hybrid search: Reciprocal Rank Fusion of FTS5 + vector results.
+  // RRF formula: score = sum(1 / (60 + rank)) across both lists.
+  // Requires embedding to be pre-computed by caller (pass null to skip vector leg).
+  hybridSearch(query: string, embedding: Float32Array | null, opts?: SearchOpts): SearchResult[] {
+    const limit = opts?.limit ?? 10;
+    const rrf_k = 60;
+
+    const kwResults = this.searchKeyword(query, { ...opts, limit: limit * 3 });
+    const vecResults = embedding
+      ? this.searchVector(embedding, { ...opts, limit: limit * 3 })
+      : [];
+
+    // Build RRF score map keyed by slug
+    const scores = new Map<string, { result: SearchResult; rrf: number }>();
+
+    for (let i = 0; i < kwResults.length; i++) {
+      const r = kwResults[i]!;
+      const rrf = 1 / (rrf_k + i + 1);
+      const existing = scores.get(r.slug);
+      if (existing) {
+        existing.rrf += rrf;
+      } else {
+        scores.set(r.slug, { result: r, rrf });
+      }
+    }
+
+    for (let i = 0; i < vecResults.length; i++) {
+      const r = vecResults[i]!;
+      const rrf = 1 / (rrf_k + i + 1);
+      const existing = scores.get(r.slug);
+      if (existing) {
+        existing.rrf += rrf;
+        // Prefer the vector chunk_text (richer context) when both sources hit
+        if (r.chunk_text.length > existing.result.chunk_text.length) {
+          existing.result = { ...r, score: existing.rrf };
+        }
+      } else {
+        scores.set(r.slug, { result: { ...r, score: rrf }, rrf });
+      }
+    }
+
+    return [...scores.values()]
+      .sort((a, b) => b.rrf - a.rrf)
+      .slice(0, limit)
+      .map(({ result, rrf }) => ({ ...result, score: rrf }));
+  }
+
   // ── Chunks ────────────────────────────────────────────────────────────────
 
   upsertChunks(slug: string, chunks: ChunkInput[]): void {
@@ -200,11 +269,14 @@ export class SqliteEngine implements BrainEngine {
     ).get(slug);
     if (!page) throw new Error(`Page not found: ${slug}`);
 
-    this.db.run("DELETE FROM content_chunks WHERE page_id = ?", [page.id]);
+    // Use INSERT OR REPLACE (requires UNIQUE INDEX on page_id, chunk_index).
+    // The old DELETE+INSERT pattern wipes embeddings on every re-put and risks
+    // data loss on interrupt (issue #22 equivalent).
     for (const c of chunks) {
       const embBlob = c.embedding ? Buffer.from(c.embedding.buffer) : null;
       this.db.run(
-        `INSERT INTO content_chunks (page_id, chunk_index, chunk_text, chunk_source, embedding, model, token_count, embedded_at)
+        `INSERT OR REPLACE INTO content_chunks
+           (page_id, chunk_index, chunk_text, chunk_source, embedding, model, token_count, embedded_at)
          VALUES (?,?,?,?,?,?,?,?)`,
         [
           page.id,
@@ -218,6 +290,9 @@ export class SqliteEngine implements BrainEngine {
         ]
       );
     }
+    // Remove any chunks beyond the new set (handles shrinkage)
+    const maxIndex = chunks.length - 1;
+    this.db.run("DELETE FROM content_chunks WHERE page_id = ? AND chunk_index > ?", [page.id, maxIndex]);
   }
 
   getChunks(slug: string): Chunk[] {
