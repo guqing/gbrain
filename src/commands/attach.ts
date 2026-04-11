@@ -102,6 +102,8 @@ export default defineCommand({
     let descriptionWarning: string | null = null;
 
     if (attachResult.isDuplicate) {
+      // Remove the redundant copy we just made; the existing file on disk is canonical.
+      rmSync(diskPath, { force: true });
       console.log(`· File already exists as ${finalSlug}, linked to page`);
     }
 
@@ -126,10 +128,14 @@ export default defineCommand({
       const nextAction = isImageMime(mime) && !described
         ? `gbrain describe ${finalSlug}`
         : null;
+      // For duplicates, the canonical file_path is the one already in the DB.
+      const actualFilePath = attachResult.isDuplicate
+        ? (engine.getFile(finalSlug)?.file_path ?? relPath)
+        : relPath;
       console.log(JSON.stringify({
         slug: finalSlug,
         page_slug: pageSlug,
-        file_path: relPath,
+        file_path: actualFilePath,
         mime_type: mime,
         described,
         description_warning: descriptionWarning,
