@@ -112,12 +112,41 @@ export default defineCommand({
     }
 
     if (!noExpand && searchQuery !== originalQuery && !args.json) {
-      console.log(`  (expanded: ${searchQuery.slice(0, 80)}${searchQuery.length > 80 ? "…" : ""})\n`);
+      // Show first ~60 chars of expansion then truncate at a word boundary
+      const exp = searchQuery.replace(/\n/g, " ");
+      const short = exp.length > 60 ? exp.slice(0, exp.lastIndexOf(" ", 60) || 60) + " …" : exp;
+      console.log(`  expanded: ${originalQuery} → ${short}\n`);
     }
 
-    for (const r of results) {
-      console.log(`[${r.score.toFixed(3)}] ${r.slug}  (${r.type})`);
-      console.log(`  ${r.chunk_text.slice(0, 120).replace(/\n/g, " ")}…`);
+    const numWidth = String(results.length).length;
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      const label = String(i + 1).padStart(numWidth);
+
+      // Build a human-readable display name.
+      // For file results, strip the ChatGPT export prefix (file-{id}-{name}.ext → {name}.ext).
+      let display: string;
+      if (r.result_kind === "file" && r.title) {
+        // ChatGPT export filenames look like: file-{id}-{actual-name}.ext
+        // Strip the leading "file-{id}-" prefix to expose the meaningful part.
+        const stripped = r.title.replace(/^file-[A-Za-z0-9]+-/, "");
+        display = stripped || r.title;
+      } else {
+        display = r.title && r.title !== r.slug ? r.title : r.slug;
+      }
+
+      // Truncate to 46 chars for column alignment
+      const name = display.length > 46 ? display.slice(0, 45) + "…" : display;
+      const typeStr = r.type === "page" ? "page" : r.type;
+      const meta = `${typeStr}  ${r.score.toFixed(3)}`;
+      console.log(` ${label}  ${name.padEnd(48)} ${meta}`);
+
+      // Snippet: break at word boundary near 120 chars
+      const raw = r.chunk_text.replace(/\s+/g, " ").trim();
+      const snip = raw.length > 120
+        ? raw.slice(0, raw.lastIndexOf(" ", 120) || 120) + "…"
+        : raw;
+      console.log(`    ${snip}\n`);
     }
   },
 });
