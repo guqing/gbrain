@@ -164,6 +164,145 @@ CREATE TABLE IF NOT EXISTS brain_meta (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+-- ── Files (v0.5) ─────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS files (
+  slug          TEXT    PRIMARY KEY,
+  sha256        TEXT    NOT NULL,
+  file_path     TEXT    NOT NULL,
+  original_name TEXT,
+  mime_type     TEXT    NOT NULL,
+  size_bytes    INTEGER NOT NULL,
+  description   TEXT,
+  created_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_files_sha256 ON files(sha256);
+
+CREATE TABLE IF NOT EXISTS page_files (
+  page_slug     TEXT    NOT NULL REFERENCES pages(slug) ON DELETE CASCADE,
+  file_slug     TEXT    NOT NULL REFERENCES files(slug) ON DELETE CASCADE,
+  display_order INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  PRIMARY KEY (page_slug, file_slug)
+);
+
+CREATE INDEX IF NOT EXISTS idx_page_files_page ON page_files(page_slug);
+CREATE INDEX IF NOT EXISTS idx_page_files_file ON page_files(file_slug);
+
+CREATE TABLE IF NOT EXISTS file_references (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  page_slug      TEXT    NOT NULL REFERENCES pages(slug) ON DELETE CASCADE,
+  file_slug      TEXT    NOT NULL REFERENCES files(slug) ON DELETE CASCADE,
+  source_type    TEXT    NOT NULL,
+  source_ref     TEXT    NOT NULL,
+  source_item_id TEXT    NOT NULL DEFAULT '',
+  source_role    TEXT,
+  created_at     TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  UNIQUE(page_slug, file_slug, source_type, source_ref, source_item_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_file_references_page   ON file_references(page_slug);
+CREATE INDEX IF NOT EXISTS idx_file_references_file   ON file_references(file_slug);
+CREATE INDEX IF NOT EXISTS idx_file_references_source ON file_references(source_type, source_ref);
+
+CREATE TABLE IF NOT EXISTS file_chunks (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  file_slug   TEXT    NOT NULL REFERENCES files(slug) ON DELETE CASCADE,
+  chunk_index INTEGER NOT NULL DEFAULT 0,
+  chunk_text  TEXT    NOT NULL,
+  embedding   BLOB,
+  model       TEXT    NOT NULL DEFAULT 'text-embedding-3-small',
+  embedded_at TEXT,
+  created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  UNIQUE(file_slug, chunk_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_file_chunks_file ON file_chunks(file_slug);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS fts_files USING fts5(
+  description,
+  content='files',
+  content_rowid='rowid',
+  tokenize='porter unicode61'
+);
+
+CREATE TRIGGER IF NOT EXISTS files_ai AFTER INSERT ON files
+WHEN new.description IS NOT NULL
+BEGIN
+  INSERT INTO fts_files(rowid, description) VALUES (new.rowid, new.description);
+END;
+
+CREATE TRIGGER IF NOT EXISTS files_au AFTER UPDATE OF description ON files
+WHEN new.description IS NOT NULL AND old.description IS NOT NULL
+BEGIN
+  INSERT INTO fts_files(fts_files, rowid, description)
+    VALUES('delete', old.rowid, old.description);
+  INSERT INTO fts_files(rowid, description) VALUES (new.rowid, new.description);
+END;
+
+CREATE TRIGGER IF NOT EXISTS files_au_insert AFTER UPDATE OF description ON files
+WHEN new.description IS NOT NULL AND old.description IS NULL
+BEGIN
+  INSERT INTO fts_files(rowid, description) VALUES (new.rowid, new.description);
+END;
+
+CREATE TRIGGER IF NOT EXISTS files_ad AFTER DELETE ON files
+WHEN old.description IS NOT NULL
+BEGIN
+  INSERT INTO fts_files(fts_files, rowid, description)
+    VALUES('delete', old.rowid, old.description);
+END;
+
+-- ── Import Runs (v0.5) ───────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS import_runs (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_type     TEXT    NOT NULL,
+  source_ref      TEXT    NOT NULL,
+  status          TEXT    NOT NULL DEFAULT 'running',
+  total_items     INTEGER NOT NULL DEFAULT 0,
+  completed_items INTEGER NOT NULL DEFAULT 0,
+  failed_items    INTEGER NOT NULL DEFAULT 0,
+  started_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  finished_at     TEXT,
+  summary         TEXT    NOT NULL DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_import_runs_source ON import_runs(source_type, source_ref);
+CREATE INDEX IF NOT EXISTS idx_import_runs_status ON import_runs(status, started_at);
+
+CREATE TABLE IF NOT EXISTS import_run_items (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  import_run_id INTEGER NOT NULL REFERENCES import_runs(id) ON DELETE CASCADE,
+  item_key      TEXT    NOT NULL,
+  item_type     TEXT    NOT NULL,
+  status        TEXT    NOT NULL DEFAULT 'pending',
+  page_slug     TEXT,
+  error_code    TEXT,
+  error_message TEXT,
+  retryable     INTEGER NOT NULL DEFAULT 0,
+  updated_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  UNIQUE(import_run_id, item_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_import_run_items_run ON import_run_items(import_run_id, status);
+
+CREATE TABLE IF NOT EXISTS import_checkpoints (
+  source_type  TEXT    NOT NULL,
+  source_ref   TEXT    NOT NULL,
+  item_key     TEXT    NOT NULL,
+  item_type    TEXT    NOT NULL,
+  status       TEXT    NOT NULL,
+  page_slug    TEXT,
+  last_run_id  INTEGER REFERENCES import_runs(id) ON DELETE SET NULL,
+  updated_at   TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  PRIMARY KEY (source_type, source_ref, item_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_import_checkpoints_run    ON import_checkpoints(last_run_id);
+CREATE INDEX IF NOT EXISTS idx_import_checkpoints_source ON import_checkpoints(source_type, source_ref, status);
 `;
 
 export function resolveDbPath(flagPath?: string): string {
@@ -279,6 +418,142 @@ export function migrateDb(db: Database): void {
     ('version', '2'),
     ('embedding_model', 'text-embedding-3-small'),
     ('chunk_strategy', 'recursive');`);
+
+  // v0.5: files, page_files, file_references, file_chunks, fts_files, import tables
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS files (
+      slug          TEXT    PRIMARY KEY,
+      sha256        TEXT    NOT NULL,
+      file_path     TEXT    NOT NULL,
+      original_name TEXT,
+      mime_type     TEXT    NOT NULL,
+      size_bytes    INTEGER NOT NULL,
+      description   TEXT,
+      created_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_files_sha256 ON files(sha256);
+
+    CREATE TABLE IF NOT EXISTS page_files (
+      page_slug     TEXT    NOT NULL REFERENCES pages(slug) ON DELETE CASCADE,
+      file_slug     TEXT    NOT NULL REFERENCES files(slug) ON DELETE CASCADE,
+      display_order INTEGER NOT NULL DEFAULT 0,
+      created_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+      PRIMARY KEY (page_slug, file_slug)
+    );
+    CREATE INDEX IF NOT EXISTS idx_page_files_page ON page_files(page_slug);
+    CREATE INDEX IF NOT EXISTS idx_page_files_file ON page_files(file_slug);
+
+    CREATE TABLE IF NOT EXISTS file_references (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      page_slug      TEXT    NOT NULL REFERENCES pages(slug) ON DELETE CASCADE,
+      file_slug      TEXT    NOT NULL REFERENCES files(slug) ON DELETE CASCADE,
+      source_type    TEXT    NOT NULL,
+      source_ref     TEXT    NOT NULL,
+      source_item_id TEXT    NOT NULL DEFAULT '',
+      source_role    TEXT,
+      created_at     TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+      UNIQUE(page_slug, file_slug, source_type, source_ref, source_item_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_file_references_page   ON file_references(page_slug);
+    CREATE INDEX IF NOT EXISTS idx_file_references_file   ON file_references(file_slug);
+    CREATE INDEX IF NOT EXISTS idx_file_references_source ON file_references(source_type, source_ref);
+
+    CREATE TABLE IF NOT EXISTS file_chunks (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      file_slug   TEXT    NOT NULL REFERENCES files(slug) ON DELETE CASCADE,
+      chunk_index INTEGER NOT NULL DEFAULT 0,
+      chunk_text  TEXT    NOT NULL,
+      embedding   BLOB,
+      model       TEXT    NOT NULL DEFAULT 'text-embedding-3-small',
+      embedded_at TEXT,
+      created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+      UNIQUE(file_slug, chunk_index)
+    );
+    CREATE INDEX IF NOT EXISTS idx_file_chunks_file ON file_chunks(file_slug);
+
+    CREATE VIRTUAL TABLE IF NOT EXISTS fts_files USING fts5(
+      description,
+      content='files',
+      content_rowid='rowid',
+      tokenize='porter unicode61'
+    );
+
+    CREATE TRIGGER IF NOT EXISTS files_ai AFTER INSERT ON files
+    WHEN new.description IS NOT NULL
+    BEGIN
+      INSERT INTO fts_files(rowid, description) VALUES (new.rowid, new.description);
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS files_au AFTER UPDATE OF description ON files
+    WHEN new.description IS NOT NULL AND old.description IS NOT NULL
+    BEGIN
+      INSERT INTO fts_files(fts_files, rowid, description)
+        VALUES('delete', old.rowid, old.description);
+      INSERT INTO fts_files(rowid, description) VALUES (new.rowid, new.description);
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS files_au_insert AFTER UPDATE OF description ON files
+    WHEN new.description IS NOT NULL AND old.description IS NULL
+    BEGIN
+      INSERT INTO fts_files(rowid, description) VALUES (new.rowid, new.description);
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS files_ad AFTER DELETE ON files
+    WHEN old.description IS NOT NULL
+    BEGIN
+      INSERT INTO fts_files(fts_files, rowid, description)
+        VALUES('delete', old.rowid, old.description);
+    END;
+
+    CREATE TABLE IF NOT EXISTS import_runs (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      source_type     TEXT    NOT NULL,
+      source_ref      TEXT    NOT NULL,
+      status          TEXT    NOT NULL DEFAULT 'running',
+      total_items     INTEGER NOT NULL DEFAULT 0,
+      completed_items INTEGER NOT NULL DEFAULT 0,
+      failed_items    INTEGER NOT NULL DEFAULT 0,
+      started_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+      finished_at     TEXT,
+      summary         TEXT    NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_import_runs_source ON import_runs(source_type, source_ref);
+    CREATE INDEX IF NOT EXISTS idx_import_runs_status ON import_runs(status, started_at);
+
+    CREATE TABLE IF NOT EXISTS import_run_items (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      import_run_id INTEGER NOT NULL REFERENCES import_runs(id) ON DELETE CASCADE,
+      item_key      TEXT    NOT NULL,
+      item_type     TEXT    NOT NULL,
+      status        TEXT    NOT NULL DEFAULT 'pending',
+      page_slug     TEXT,
+      error_code    TEXT,
+      error_message TEXT,
+      retryable     INTEGER NOT NULL DEFAULT 0,
+      updated_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+      UNIQUE(import_run_id, item_key)
+    );
+    CREATE INDEX IF NOT EXISTS idx_import_run_items_run ON import_run_items(import_run_id, status);
+
+    CREATE TABLE IF NOT EXISTS import_checkpoints (
+      source_type  TEXT    NOT NULL,
+      source_ref   TEXT    NOT NULL,
+      item_key     TEXT    NOT NULL,
+      item_type    TEXT    NOT NULL,
+      status       TEXT    NOT NULL,
+      page_slug    TEXT,
+      last_run_id  INTEGER REFERENCES import_runs(id) ON DELETE SET NULL,
+      updated_at   TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+      PRIMARY KEY (source_type, source_ref, item_key)
+    );
+    CREATE INDEX IF NOT EXISTS idx_import_checkpoints_run    ON import_checkpoints(last_run_id);
+    CREATE INDEX IF NOT EXISTS idx_import_checkpoints_source ON import_checkpoints(source_type, source_ref, status);
+  `);
+
+  // Rebuild FTS index from any existing described files.
+  // fts_files is a content table — CREATE IF NOT EXISTS leaves it empty on existing DBs.
+  // INSERT('rebuild') is idempotent and fast; harmless on fresh DBs.
+  db.exec(`INSERT INTO fts_files(fts_files) VALUES('rebuild')`);
 }
 
 export function openDb(dbPath: string): Database {
