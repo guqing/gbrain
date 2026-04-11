@@ -13,7 +13,7 @@ export const COMMAND_HELP: Record<string, string> = {
   delete:    "Usage: gbrain delete <slug>\n\nDelete a page (prompts for confirmation).",
   list:      "Usage: gbrain list [--type T] [--tag T] [--limit N]\n\nList pages with optional filters.",
   search:    "Usage: gbrain search <query> [--type T] [--limit N]\n\nFTS5 keyword search.",
-  query:     "Usage: gbrain query <question> [--no-expand] [--limit N]\n\nHybrid search (FTS5 + vector RRF + Claude Haiku expansion). Requires embed API key (gbrain config set embed.api_key <key>).",
+  query:     "Usage: gbrain query <question> [--no-expand] [--limit N] [--type T]\n\nHybrid search (FTS5 keyword + vector RRF). Optionally expands query with LLM synonyms (requires compile.api_key). Use --no-expand for exact-term search without LLM call. Falls back to FTS5-only if no embed key.",
   link:      "Usage: gbrain link <from> <to> [--context <text>]\n\nCreate a typed link between two pages.",
   unlink:    "Usage: gbrain unlink <from> <to>\n\nRemove a link between two pages.",
   backlinks: "Usage: gbrain backlinks <slug>\n\nShow all pages that link to this page.",
@@ -38,7 +38,7 @@ export const COMMAND_HELP: Record<string, string> = {
   serve:     "Usage: gbrain serve\n\nStart MCP server on stdio. Connect via Claude Desktop or claude_mcp_config.json.",
   "setup-mcp": "Usage: gbrain setup-mcp\n\nGenerate claude_mcp_config.json for Claude Desktop integration.",
   doctor:      "Usage: gbrain doctor [--json]\n\nRun health checks on the brain database and configuration. Exit 1 on failures.",
-  "check-update": "Usage: gbrain check-update [--json]\n\nCheck for a newer version of gbrain on npm. Only notifies on minor/major bumps.",
+  call:        "Usage: gbrain call <tool> ['<json>']\n\nInvoke any MCP tool directly from the CLI. Useful for debugging agent integrations.\nAccepts JSON params as positional arg or via stdin pipe.\nExamples:\n  gbrain call brain_get '{\"slug\":\"knowledge/sqlite\"}'\n  gbrain call brain_search '{\"query\":\"kubernetes\",\"limit\":5}'\n  gbrain call brain_hybrid_search '{\"query\":\"docker networking\"}'\n  echo '{\"slug\":\"test\"}' | gbrain call brain_get",
 };
 
 const main = defineCommand({
@@ -90,6 +90,8 @@ const main = defineCommand({
     // Diagnostics
     doctor:      () => import("./commands/doctor.ts").then((m) => m.default),
     "check-update": () => import("./commands/check-update.ts").then((m) => m.default),
+    // Developer tools
+    call:        () => import("./commands/call.ts").then((m) => m.default),
     // MCP server
     serve:       () => import("./commands/serve.ts").then((m) => m.default),
     // Agent tool discovery
