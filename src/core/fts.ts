@@ -39,10 +39,13 @@ export function buildSearchTokens(text: string): string {
     const cp = text.codePointAt(i)!;
 
     if (isCJK(cp)) {
-      // Collect contiguous CJK run
+      // Collect contiguous CJK run, advancing by 2 for supplementary (surrogate pair) chars
       let run = "";
-      while (i < text.length && isCJK(text.codePointAt(i)!)) {
-        run += text[i++];
+      while (i < text.length) {
+        const c = text.codePointAt(i)!;
+        if (!isCJK(c)) break;
+        run += String.fromCodePoint(c);
+        i += c > 0xffff ? 2 : 1;
       }
       // Emit unigram, bigram, trigram at each position
       for (let j = 0; j < run.length; j++) {
@@ -85,9 +88,10 @@ function preprocessFtsQuery(raw: string): string {
   while (i < raw.length) {
     const cp = raw.codePointAt(i)!;
     if (isCJK(cp)) {
-      // Single CJK character as unigram — do NOT generate bigrams for queries
-      tokens.push(raw[i]);
-      i++;
+      // Single CJK character as unigram — do NOT generate bigrams for queries.
+      // Advance by 2 for supplementary (surrogate pair) characters.
+      tokens.push(String.fromCodePoint(cp));
+      i += cp > 0xffff ? 2 : 1;
     } else if (cp <= 32 || cp === 0x3000) {
       i++;
     } else {
