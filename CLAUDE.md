@@ -1,6 +1,6 @@
-# gbrain — Personal Knowledge Brain
+# exo — Personal Knowledge Brain
 
-This project builds `gbrain`: a CLI tool + MCP server for personal knowledge management.
+This project builds `exo`: your exocortex — a CLI tool + MCP server that ingests ChatGPT exports, PDFs, and files into a searchable knowledge base. Hybrid FTS5 + vector search. LLM-compiled knowledge pages. Wires into Claude Code and Cursor via MCP.
 Stack: Bun + TypeScript + SQLite (FTS5 + sqlite-vec). See DESIGN.md for full spec.
 
 ## Skill routing

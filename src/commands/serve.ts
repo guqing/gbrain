@@ -10,7 +10,7 @@ export default defineCommand({
   async run({ args }) {
     const dbPath = resolveDbPath(args.db);
     const db = openDb(dbPath);
-    process.stderr.write(`GBrain MCP server running (stdio) — brain: ${dbPath}\n`);
+    process.stderr.write(`Exo MCP server running (stdio) — brain: ${dbPath}\n`);
     process.stderr.write(`Tools: brain_search, brain_get, brain_put, brain_list, brain_link, brain_stats, brain_lint_summary\n`);
     await startMcpServer(db, dbPath);
   },

@@ -25,13 +25,13 @@ export default defineCommand({
     const dbPath = resolveDbPath(args.db);
 
     // When installed via `bun install -g`, process.execPath is the Bun runtime,
-    // not the gbrain shim. Detect script mode and find the real executable.
+    // not the exo shim. Detect script mode and find the real executable.
     const isScriptMode = (process.argv[1] ?? "").endsWith(".ts");
-    const gbrainShim: string = isScriptMode ? (Bun.which("gbrain") ?? process.argv[1] ?? "gbrain") : process.execPath;
+    const exoShim: string = isScriptMode ? (Bun.which("exo") ?? process.argv[1] ?? "exo") : process.execPath;
 
-    const entry = gbrainShim.endsWith(".ts")
-      ? { command: process.execPath, args: [gbrainShim, "serve", "--db", dbPath] }
-      : { command: gbrainShim, args: ["serve", "--db", dbPath] };
+    const entry = exoShim.endsWith(".ts")
+      ? { command: process.execPath, args: [exoShim, "serve", "--db", dbPath] }
+      : { command: exoShim, args: ["serve", "--db", dbPath] };
 
     const targets = args.all ? MCP_TARGETS : MCP_TARGETS.slice(0, 1); // default: Claude Code only
 
@@ -50,23 +50,23 @@ export default defineCommand({
 
       if (!config.mcpServers) config.mcpServers = {};
 
-      if (config.mcpServers["gbrain"]) {
-        console.log(`⚠ ${target.name}: gbrain already configured at ${configPath}`);
+      if (config.mcpServers["exo"]) {
+        console.log(`⚠ ${target.name}: exo already configured at ${configPath}`);
         console.log(`  Remove the existing entry to reconfigure.`);
         continue;
       }
 
-      config.mcpServers["gbrain"] = entry;
+      config.mcpServers["exo"] = entry;
 
       mkdirSync(dirname(configPath), { recursive: true });
       writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
-      console.log(`✓ ${target.name}: gbrain MCP server configured`);
+      console.log(`✓ ${target.name}: exo MCP server configured`);
       console.log(`  Config: ${configPath}`);
       console.log(`  Brain:  ${dbPath}`);
     }
 
     console.log("");
     console.log("Restart Claude Code / Cursor to activate the MCP server.");
-    console.log("Verify with: gbrain serve --db " + dbPath);
+    console.log("Verify with: exo serve --db " + dbPath);
   },
 });

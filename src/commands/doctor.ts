@@ -23,7 +23,7 @@ function runChecks(dbPath: string): Check[] {
       name: 'connection',
       status: 'fail',
       message: `brain.db not found at ${dbPath}`,
-      fix: "Run: gbrain init",
+      fix: "Run: exo init",
     });
     return checks; // All other checks depend on DB existing
   }
@@ -41,7 +41,7 @@ function runChecks(dbPath: string): Check[] {
       name: 'connection',
       status: 'fail',
       message: `Cannot open brain.db: ${e instanceof Error ? e.message : String(e)}`,
-      fix: "Run: gbrain init --force  (or check file permissions)",
+      fix: "Run: exo init --force  (or check file permissions)",
     });
     return checks;
   }
@@ -57,7 +57,7 @@ function runChecks(dbPath: string): Check[] {
         name: 'fts_index',
         status: 'warn',
         message: `FTS index may be stale: ${pageCount} pages, ${ftsCount} FTS rows`,
-        fix: "Run: gbrain init --rebuild-fts  (or recreate DB from export)",
+        fix: "Run: exo init --rebuild-fts  (or recreate DB from export)",
       });
     } else {
       checks.push({ name: 'fts_index', status: 'ok', message: `${pageCount} pages, FTS index consistent` });
@@ -82,7 +82,7 @@ function runChecks(dbPath: string): Check[] {
           name: 'embedding_coverage',
           status: 'warn',
           message: `Low embedding coverage: ${pct}% (${embeddedPages}/${pageCount} pages)`,
-          fix: "Run: gbrain embed --all",
+          fix: "Run: exo embed --all",
         });
       } else {
         checks.push({ name: 'embedding_coverage', status: 'ok', message: `${pct}% coverage (${embeddedPages}/${pageCount} pages)` });
@@ -102,7 +102,7 @@ function runChecks(dbPath: string): Check[] {
         name: 'orphan_chunks',
         status: 'warn',
         message: `${orphans} orphaned chunk rows (no parent page)`,
-        fix: "Run: gbrain health --prune",
+        fix: "Run: exo health --prune",
       });
     } else {
       checks.push({ name: 'orphan_chunks', status: 'ok', message: 'No orphaned chunks' });
@@ -123,7 +123,7 @@ function runChecks(dbPath: string): Check[] {
         name: 'schema_version',
         status: 'warn',
         message: `Schema version ${schemaVersion ?? 'unknown'} (expected 2)`,
-        fix: "Run: gbrain init  (to re-run migrations)",
+        fix: "Run: exo init  (to re-run migrations)",
       });
     }
   } catch {
@@ -138,7 +138,7 @@ function runChecks(dbPath: string): Check[] {
       name: 'embed_config',
       status: hasEmbedKey ? 'ok' : 'warn',
       message: hasEmbedKey ? 'Embed API key configured' : 'No embed API key — semantic search unavailable',
-      fix: hasEmbedKey ? undefined : "Run: gbrain config set embed.api_key <key>",
+      fix: hasEmbedKey ? undefined : "Run: exo config set embed.api_key <key>",
     });
   } catch {
     checks.push({ name: 'embed_config', status: 'warn', message: 'Cannot read config file' });
@@ -151,8 +151,8 @@ function runChecks(dbPath: string): Check[] {
     checks.push({
       name: 'compile_config',
       status: hasCompileKey ? 'ok' : 'warn',
-      message: hasCompileKey ? 'Compile API key configured' : 'No compile API key — gbrain compile will fail',
-      fix: hasCompileKey ? undefined : "Run: gbrain config set compile.api_key <key>",
+      message: hasCompileKey ? 'Compile API key configured' : 'No compile API key — exo compile will fail',
+      fix: hasCompileKey ? undefined : "Run: exo config set compile.api_key <key>",
     });
   } catch {
     checks.push({ name: 'compile_config', status: 'warn', message: 'Cannot read compile config' });
@@ -170,7 +170,7 @@ function runChecks(dbPath: string): Check[] {
         name: 'inbox_backlog',
         status: 'warn',
         message: `Inbox backlog: ${inboxCount} items pending`,
-        fix: "Run: gbrain compile",
+        fix: "Run: exo compile",
       });
     } else {
       checks.push({ name: 'inbox_backlog', status: 'ok', message: `Inbox: ${inboxCount} items queued` });
@@ -204,7 +204,7 @@ export default defineCommand({
       return;
     }
 
-    console.log("gbrain doctor\n");
+    console.log("exo doctor\n");
     for (const c of checks) {
       const icon = c.status === 'ok' ? '✓' : c.status === 'warn' ? '⚠' : '✗';
       console.log(`  ${icon}  ${c.name}: ${c.message}`);
@@ -218,7 +218,7 @@ export default defineCommand({
     console.log(`\n  ${oks.length} ok · ${warns.length} warnings · ${fails.length} failures`);
 
     if (fails.length > 0) {
-      console.log("\n  Fix the failures above before using gbrain.");
+      console.log("\n  Fix the failures above before using exo.");
       process.exit(1);
     } else if (warns.length > 0) {
       console.log("\n  Warnings are non-blocking but worth addressing.");

@@ -24,7 +24,7 @@ export class VideoExtractor implements ContentExtractor {
   }
 
   async extract(filePath: string, opts?: ExtractOpts): Promise<ContentChunk[]> {
-    const tmpPath = join(tmpdir(), `gbrain-audio-${randomBytes(8).toString("hex")}.wav`);
+    const tmpPath = join(tmpdir(), `exo-audio-${randomBytes(8).toString("hex")}.wav`);
 
     try {
       await this.extractAudioTrack(filePath, tmpPath);

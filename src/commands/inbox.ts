@@ -25,7 +25,7 @@ export default defineCommand({
 
     if (items.length === 0) {
       console.log("✓ Inbox is empty.");
-      console.log("  Use 'gbrain capture <text>' or 'gbrain harvest' to add items.");
+      console.log("  Use 'exo capture <text>' or 'exo harvest' to add items.");
       return;
     }
 
@@ -50,6 +50,6 @@ export default defineCommand({
     }
 
     console.log();
-    console.log(`Run 'gbrain compile' to process (use --interactive to review each item).`);
+    console.log(`Run 'exo compile' to process (use --interactive to review each item).`);
   },
 });

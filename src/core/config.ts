@@ -5,7 +5,7 @@ import TOML from "@ltd/j-toml";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export interface GbrainConfig {
+export interface ExoConfig {
   db: {
     path?: string;
   };
@@ -32,7 +32,7 @@ export interface GbrainConfig {
   };
 }
 
-// Allowed keys for `gbrain config set`
+// Allowed keys for `exo config set`
 export const CONFIG_KEYS = [
   "db.path",
   "embed.base_url",
@@ -53,7 +53,7 @@ export type ConfigKey = (typeof CONFIG_KEYS)[number];
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
 export function getConfigDir(): string {
-  return join(homedir(), ".gbrain");
+  return join(homedir(), ".exo");
 }
 
 export function getConfigPath(): string {
@@ -62,9 +62,9 @@ export function getConfigPath(): string {
 
 // ── Defaults ──────────────────────────────────────────────────────────────────
 
-const DEFAULTS: GbrainConfig = {
+const DEFAULTS: ExoConfig = {
   db: {
-    path: join(homedir(), ".gbrain", "brain.db"),
+    path: join(homedir(), ".exo", "brain.db"),
   },
   embed: {
     model: "text-embedding-3-small",
@@ -151,7 +151,7 @@ function readTomlFile(): PartialConfig {
 
     return result;
   } catch (e) {
-    console.warn(`⚠ Failed to parse ~/.gbrain/config.toml: ${e instanceof Error ? e.message : e}`);
+    console.warn(`⚠ Failed to parse ~/.exo/config.toml: ${e instanceof Error ? e.message : e}`);
     console.warn("  Falling back to defaults.");
     return {};
   }
@@ -159,13 +159,13 @@ function readTomlFile(): PartialConfig {
 
 // ── Load (merge: env > config file > defaults) ────────────────────────────────
 
-export function loadConfig(overrides?: { db?: string }): GbrainConfig {
+export function loadConfig(overrides?: { db?: string }): ExoConfig {
   const file = readTomlFile();
 
-  const cfg: GbrainConfig = {
+  const cfg: ExoConfig = {
     db: {
       path: overrides?.db
-        ?? process.env["GBRAIN_DB"]
+        ?? process.env["EXO_DB"]
         ?? file.db?.path
         ?? DEFAULTS.db.path,
     },
@@ -195,7 +195,7 @@ export function loadConfig(overrides?: { db?: string }): GbrainConfig {
   return cfg;
 }
 
-// ── Source tracking (for `gbrain config list`) ────────────────────────────────
+// ── Source tracking (for `exo config list`) ────────────────────────────────
 
 type ConfigSource = "flag" | `env: ${string}` | "config" | "config (embed)" | "default";
 
@@ -223,11 +223,11 @@ export function listConfig(overrides?: { db?: string }): ConfigEntry[] {
   // db.path
   const dbFlagVal = overrides?.db;
   const dbVal =
-    dbFlagVal ?? process.env["GBRAIN_DB"] ?? file.db?.path ?? "";
+    dbFlagVal ?? process.env["EXO_DB"] ?? file.db?.path ?? "";
   entries.push({
     key: "db.path",
     value: dbVal,
-    source: source(dbFlagVal, "GBRAIN_DB", file.db?.path),
+    source: source(dbFlagVal, "EXO_DB", file.db?.path),
   });
 
   // embed.base_url

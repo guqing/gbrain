@@ -334,9 +334,9 @@ CREATE INDEX IF NOT EXISTS idx_import_checkpoints_source ON import_checkpoints(s
 
 export function resolveDbPath(flagPath?: string): string {
   if (flagPath) return flagPath;
-  if (process.env["GBRAIN_DB"]) return process.env["GBRAIN_DB"];
-  // Default: ~/.gbrain/brain.db (same dir as config.toml)
-  return join(homedir(), ".gbrain", "brain.db");
+  if (process.env["EXO_DB"]) return process.env["EXO_DB"];
+  // Default: ~/.exo/brain.db (same dir as config.toml)
+  return join(homedir(), ".exo", "brain.db");
 }
 
 export function migrateDb(db: Database): void {
@@ -613,7 +613,7 @@ export function migrateDb(db: Database): void {
 export function openDb(dbPath: string): Database {
   if (!existsSync(dbPath)) {
     console.error(
-      `✗ brain.db not found at ${dbPath}\n  Run 'gbrain init' first.`
+      `✗ brain.db not found at ${dbPath}\n  Run 'exo init' first.`
     );
     process.exit(1);
   }

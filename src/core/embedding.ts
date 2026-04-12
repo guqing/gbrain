@@ -18,9 +18,9 @@ function getClient(): OpenAI {
   if (!resolvedKey) {
     throw new Error(
       "No embedding API key configured.\n" +
-      "  Option 1: gbrain config set embed.api_key <key>\n" +
+      "  Option 1: exo config set embed.api_key <key>\n" +
       "  Option 2: export OPENAI_API_KEY=<key>\n" +
-      "  For Vercel AI Gateway: gbrain config set embed.base_url https://ai-gateway.vercel.sh/v1"
+      "  For Vercel AI Gateway: exo config set embed.base_url https://ai-gateway.vercel.sh/v1"
     );
   }
 

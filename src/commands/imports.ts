@@ -52,7 +52,7 @@ export default defineCommand({
         if (run.finished_at) console.log(`  Finished: ${run.finished_at}`);
         if (run.summary) console.log(`  Summary: ${run.summary}`);
         if (run.status === "interrupted" || run.status === "completed_with_errors") {
-          console.log(`  Resume: gbrain import-chatgpt ${run.source_ref} --resume ${run.id}`);
+          console.log(`  Resume: exo import-chatgpt ${run.source_ref} --resume ${run.id}`);
         }
       }
       return;
