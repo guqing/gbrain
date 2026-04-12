@@ -26,11 +26,13 @@ export interface CachedQuery {
 export function getCachedQuery(db: Database, query: string): CachedQuery | null {
   const key = hashQuery(query.toLowerCase().trim());
   const row = db.query<
-    { expanded: string; embedding: Buffer | null; created_at: number },
+    { expanded: string; embedding: Buffer | null; created_at: number; query: string },
     [string]
-  >("SELECT expanded, embedding, created_at FROM query_cache WHERE hash = ?").get(key);
+  >("SELECT expanded, embedding, created_at, query FROM query_cache WHERE hash = ?").get(key);
 
   if (!row) return null;
+  // Guard against hash collision: verify the stored query matches
+  if (row.query !== query) return null;
   if (Date.now() - row.created_at > TTL_MS) {
     db.run("DELETE FROM query_cache WHERE hash = ?", [key]);
     return null;

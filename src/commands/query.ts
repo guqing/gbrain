@@ -105,7 +105,7 @@ function extractSnippet(text: string, query: string, maxLen = 200): string {
   }
   if (end < clean.length) {
     const ls = snip.lastIndexOf(' ');
-    if (ls > snip.length - 20) snip = snip.slice(0, ls);
+    if (ls > 0 && ls > snip.length - 20) snip = snip.slice(0, ls);
   }
 
   const prefix = start > 0 ? '…' : '';
