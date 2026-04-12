@@ -99,7 +99,13 @@ export default defineCommand({
       }
     }
 
-    const results = engine.hybridSearch(searchQuery, embedding, { limit, type: args.type });
+    const results = engine.hybridSearch(searchQuery, embedding, {
+      limit,
+      type: args.type,
+      // Always use the original query for FTS — expanded queries may contain '…'
+      // or other characters that cause FTS5 to silently return 0 results.
+      keywordQuery: originalQuery,
+    });
 
     if (args.json) {
       console.log(JSON.stringify(results, null, 2));
