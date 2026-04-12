@@ -110,7 +110,7 @@ export function ftsSearch(
   }
 
   const snippetStmt = db.query<{ snippet: string }, [string, number]>(
-    `SELECT snippet(page_fts, 1, '…', '…', '...', 12) AS snippet
+    `SELECT snippet(page_fts, 1, '', '', '...', 24) AS snippet
      FROM page_fts
      WHERE page_fts MATCH ?
      AND rowid = ?`

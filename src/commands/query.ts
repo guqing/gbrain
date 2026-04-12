@@ -56,6 +56,56 @@ async function expandQuery(
   }
 }
 
+/**
+ * Extract a keyword-anchored snippet from text.
+ * Finds the first occurrence of any query term and returns context around it.
+ * Falls back to the beginning of the text if no terms are found.
+ */
+function extractSnippet(text: string, query: string, maxLen = 200): string {
+  // Strip markdown HR separators that bleed into snippets
+  const clean = text.replace(/\n?-{3,}\n?/g, ' ').replace(/\s+/g, ' ').trim();
+
+  const terms = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(t => t.length >= 2)
+    .slice(0, 8);
+
+  let best = -1;
+  for (const term of terms) {
+    const idx = clean.toLowerCase().indexOf(term);
+    if (idx !== -1 && (best === -1 || idx < best)) {
+      best = idx;
+    }
+  }
+
+  if (best === -1) {
+    // No term found: take start of text
+    return clean.length > maxLen
+      ? clean.slice(0, clean.lastIndexOf(' ', maxLen) || maxLen) + '…'
+      : clean;
+  }
+
+  const contextBefore = Math.floor(maxLen * 0.25);
+  const start = Math.max(0, best - contextBefore);
+  const end = start + maxLen;
+
+  let snip = clean.slice(start, end);
+  // Trim to word boundaries
+  if (start > 0) {
+    const ws = snip.indexOf(' ');
+    if (ws > 0 && ws < 20) snip = snip.slice(ws + 1);
+  }
+  if (end < clean.length) {
+    const ls = snip.lastIndexOf(' ');
+    if (ls > snip.length - 20) snip = snip.slice(0, ls);
+  }
+
+  const prefix = start > 0 ? '…' : '';
+  const suffix = end < clean.length ? '…' : '';
+  return prefix + snip + suffix;
+}
+
 export default defineCommand({
   meta: { name: "query", description: "Hybrid search (FTS5 + vector RRF + query expansion)" },
   args: {
@@ -76,6 +126,10 @@ export default defineCommand({
       cfg.embed.base_url &&
       (cfg.embed.base_url.includes("localhost") || cfg.embed.base_url.includes("127.0.0.1"));
     const hasEmbedKey = !!cfg.embed.api_key || isLocal;
+
+    if (!hasEmbedKey && !args.json) {
+      console.error("⚠  向量搜索不可用（未配置 embed API key）— 已降级为纯关键词搜索，结果质量会下降。\n");
+    }
 
     const db = openDb(resolveDbPath(args.db));
     const engine = new SqliteEngine(db);
@@ -153,11 +207,10 @@ export default defineCommand({
       const meta = `${typeStr}  ${r.score.toFixed(3)}`;
       console.log(` ${label}  ${name.padEnd(48)} ${meta}${chunkSrc}`);
 
-      // Snippet: break at word boundary near 120 chars
-      const raw = r.chunk_text.replace(/\s+/g, " ").trim();
-      const snip = raw.length > 120
-        ? raw.slice(0, raw.lastIndexOf(" ", 120) || 120) + "…"
-        : raw;
+      // Keyword-anchored snippet: find where the query terms appear in the text
+      // so the user sees relevant context rather than the start of the chunk.
+      const raw = (r.snippet ?? r.chunk_text);
+      const snip = extractSnippet(raw, originalQuery, 200);
       console.log(`    ${snip}\n`);
     }
   },

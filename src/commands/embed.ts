@@ -69,13 +69,22 @@ export default defineCommand({
 
       const chunkInputs: ChunkInput[] = [];
       if (page.compiled_truth.trim()) {
-        for (const c of chunkText(page.compiled_truth)) {
-          chunkInputs.push({ chunk_index: chunkInputs.length, chunk_text: c.text, chunk_source: 'compiled_truth' });
+        // Split at section boundaries (---) so separators don't end up inside chunks
+        const sections = page.compiled_truth.split(/\n---+\n/).filter(s => s.trim());
+        for (const section of sections.length > 0 ? sections : [page.compiled_truth]) {
+          if (!section.trim()) continue;
+          for (const c of chunkText(section)) {
+            chunkInputs.push({ chunk_index: chunkInputs.length, chunk_text: c.text, chunk_source: 'compiled_truth' });
+          }
         }
       }
       if (page.timeline?.trim()) {
-        for (const c of chunkText(page.timeline)) {
-          chunkInputs.push({ chunk_index: chunkInputs.length, chunk_text: c.text, chunk_source: 'timeline' });
+        const sections = page.timeline.split(/\n---+\n/).filter(s => s.trim());
+        for (const section of sections.length > 0 ? sections : [page.timeline]) {
+          if (!section.trim()) continue;
+          for (const c of chunkText(section)) {
+            chunkInputs.push({ chunk_index: chunkInputs.length, chunk_text: c.text, chunk_source: 'timeline' });
+          }
         }
       }
 
