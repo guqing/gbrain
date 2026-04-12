@@ -54,7 +54,7 @@ export async function runCheckUpdate(silent = false): Promise<CheckUpdateResult 
 
     const res = await fetch('https://registry.npmjs.org/@guqings%2fexo/latest', {
       signal: controller.signal,
-      headers: { 'User-Agent`: `exo/${VERSION}` },
+      headers: { 'User-Agent': `exo/${VERSION}` },
     }).finally(() => clearTimeout(timeout));
 
     if (!res.ok) return null;

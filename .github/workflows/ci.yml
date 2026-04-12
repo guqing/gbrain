@@ -28,5 +28,5 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      - run: bun build --compile --minify src/cli.ts --outfile bin/gbrain
-      - run: ./bin/gbrain --version
+      - run: bun build --compile --minify src/cli.ts --outfile bin/exo
+      - run: ./bin/exo --version

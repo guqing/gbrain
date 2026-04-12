@@ -33,7 +33,8 @@
     "rag",
     "sqlite",
     "vector-search",
-    "cli"
+    "cli",
+    "gbrain"
   ],
   "license": "MIT",
   "dependencies": {
