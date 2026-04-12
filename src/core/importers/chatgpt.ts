@@ -1,5 +1,6 @@
 import { readdirSync, existsSync, readFileSync } from "fs";
 import { join } from "path";
+import { slugify } from "../utils.ts";
 import type { ImportAdapter, ImportUnit } from "./types.ts";
 
 // ── ChatGPT export types ────────────────────────────────────────────────────
@@ -209,7 +210,7 @@ export class ChatGPTAdapter implements ImportAdapter {
         const content = conversationToMarkdown(title, nodes);
         const imageRefs = extractImageRefs(mapping, fileIndex);
 
-        const pageSlug = `chatgpt/${convId.slice(0, 8)}`;
+        const pageSlug = `chatgpt/${slugify(title)}-${convId.slice(0, 8)}`;
 
         yield {
           item_key: convId,

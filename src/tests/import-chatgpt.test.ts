@@ -128,14 +128,14 @@ describe("ChatGPTAdapter.scan()", () => {
     cleanup();
   });
 
-  test("happy path — page_slug is chatgpt-{id[:8]}", async () => {
+  test("happy path — page_slug is chatgpt/{title-slug}-{id[:8]}", async () => {
     writeFileSync(join(dir, "conversations.json"), makeConversations());
     const adapter = new ChatGPTAdapter();
     const units: { page_slug: string }[] = [];
     for await (const unit of adapter.scan(dir)) {
       units.push(unit as { page_slug: string });
     }
-    expect(units[0]?.page_slug).toBe("chatgpt/conv-abc");
+    expect(units[0]?.page_slug).toBe("chatgpt/test-conversation-conv-abc");
     cleanup();
   });
 
