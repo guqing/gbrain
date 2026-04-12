@@ -6,7 +6,7 @@ import { createHash } from "crypto";
 export function slugify(text: string, maxLen = 50): string {
   return text
     .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/[^\p{L}\p{N}\s-]/gu, "") // keep unicode letters (CJK etc), numbers, spaces, hyphens
     .trim()
     .replace(/\s+/g, "-")
     .slice(0, maxLen)
