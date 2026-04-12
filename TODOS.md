@@ -65,25 +65,21 @@
   - `src/core/sqlite-engine.ts` `upsertChunks`: Split page content at `---` boundaries before chunking so compiled_truth and timeline are in separate chunks.
   - Add `--type <session|page|file>` flag to query command for type filtering.
 
-## Web UI — Next.js embedded in exo serve (v0.8)
+## Web UI — 极简本地知识库浏览器（v0.7）
 
-- **What:** A full web interface embedded in `exo serve` — built with Next.js (static export), served alongside the existing Hono JSON API. Features: semantic search with highlighted results, multi-modal result display (page cards, file thumbnails, image previews), document list/management, full markdown-rendered article pages, and inline article editing that calls `exo compile`.
-- **Why:** CLI output has a ceiling — can't browse results, see full content, or manage documents visually. A web UI makes exo demo-able and screenshot-able (important for open source growth). The multimodal display is where exo's mixed content (text + images + audio descriptions) becomes truly useful.
-- **Architecture:** Next.js app lives in `web/` with `output: 'export'` in `next.config.js`. `next build` produces `web/out/`. `exo serve` (Hono) serves the static files from `web/out/` and provides JSON API endpoints. Single command, single port, no separate process.
-- **Tech stack:** Next.js (static export) + `react-markdown` for rendering + Tailwind (optional). No external APIs needed — all data from local SQLite via Hono.
-- **API endpoints needed in `src/commands/serve.ts`:**
-  - `GET /api/search?q=&type=&limit=` → calls `engine.hybridSearch()`
-  - `GET /api/page/:slug` → returns page markdown + metadata
-  - `GET /api/list?type=&limit=&offset=` → lists all pages with pagination
-  - `GET /api/files` → lists all files with metadata
-  - `POST /api/compile` → triggers compile for a page slug
-- **UI pages in `web/app/`:**
-  - `/` → document list / dashboard
-  - `/search` → search with result cards, type filter, score display
-  - `/page/[slug]` → full markdown-rendered article with timeline section
-  - `/files` → file browser with image/audio/pdf previews
-- **Build integration:** Add `"build:ui": "cd web && next build"` to `package.json`. The built `web/out/` is included in the npm package. Bun serve command checks for `web/out/index.html` and serves it.
-- **Open questions:** Should `web/out/` be pre-built and committed, or built during npm publish? Hot-reload in dev mode?
+- **What:** `exo ui` 命令启动本地 HTTP 服务（端口 7499），在浏览器中提供实时搜索 + 结果浏览。前端是单文件内嵌 HTML，零构建步骤。
+- **Why:** CLI 显示有上限——结果截断、无法翻页、无法看全文。Web UI 解决"搜索结果太零散"的问题，让结果可读可浏览。首要目标是自己用，不是 demo。
+- **Architecture:** `exo ui` 是独立命令，不改 `exo serve`（MCP stdio 保持独立）。后端用 `Bun.serve()` 原生 HTTP，不引入 Hono。前端代码内嵌在 `src/ui/html.ts` 的字符串常量里，打包后随 binary 分发，无需单独构建。
+- **API endpoints（新建在 `src/commands/ui.ts`）:**
+  - `GET /api/search?q=&type=page|session|inbox&limit=` → `engine.hybridSearch()`
+  - `GET /api/page/:slug` → 返回完整页面内容
+- **前端功能：**
+  - Tab 过滤：All / Pages / Sessions / Files（Files 在客户端按 `result_kind` 过滤）
+  - 相对分数条（score / maxScore）直观显示相关性差距
+  - 完整 snippet，不截断
+  - 点击结果 inline 展开全文（调用 `/api/page/:slug`）
+  - 实时搜索，debounce 300ms
+- **完整 spec：** `docs/v0.7-web-ui-and-search-fix.md`
 
 ## Entity detection + auto-linking (v0.8)
 
