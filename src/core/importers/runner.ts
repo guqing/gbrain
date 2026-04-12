@@ -153,6 +153,7 @@ export class ImportRunner {
                 mime_type: mime,
                 size_bytes: content.length,
                 description: null,
+                processed_at: null,
               });
               fileSlug = result.slug;
               imagesAttached++;

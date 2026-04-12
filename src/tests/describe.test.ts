@@ -33,7 +33,7 @@ function attachImg(engine: SqliteEngine, pageSlug: string, fileSlug: string) {
     original_name: `${fileSlug}.png`,
     mime_type: "image/png",
     size_bytes: 512,
-    description: null,
+    description: null, processed_at: null,
   });
 }
 

@@ -5,6 +5,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.6.0.0] — 2026-04-11
+
+### Added
+- **Unified content extraction** — `gbrain attach` now automatically extracts and indexes text from PDFs (per-page chunks), DOCX documents (per-paragraph chunks), and audio files (Whisper transcription). Video files are supported via `--transcribe` after extracting the audio track with ffmpeg.
+- **`ExtractorRegistry`** — new `src/core/extractors/` module with a pluggable extractor interface. Five built-in extractors: `PdfExtractor` (unpdf), `DocumentExtractor` (mammoth), `AudioExtractor` (Whisper API, injectable `fetchFn` for testing), `VideoExtractor` (ffmpeg → wav → Whisper), `ImageExtractor` (wraps existing vision API).
+- **`processFileContent()`** — single dispatch entry point in `src/core/file-processing.ts`. Replaces per-type branching with registry lookup, batches all chunk embeddings in one API call, and stores chunks via `upsertFileChunks`.
+- **`--no-embed` flag for `attach`** — extract and store text chunks without calling the embedding API. Useful for text indexing without vector search.
+- **`--transcribe` flag for `attach`** — opt-in audio/video transcription via Whisper.
+- **Keyword search across file chunks** — `gbrain query` now searches `fts_file_chunks` (FTS5) in addition to pages. PDF pages, DOCX paragraphs, and audio transcripts are all full-text searchable.
+- **`[page-N]` / `[transcript]` chunk source labels** — query results now show which page or segment a match came from.
+- **`processed_at` column** on the `files` table — tracks which files have been fully extracted. `listUnprocessedFiles()` returns files pending extraction.
+- **`describe` command** extended to all supported MIME types via `registry.supports()` (previously images only).
+- **Transcription config** — `[transcription]` section in `config.toml` for a separate Whisper endpoint; falls back to `[vision]` config if unset.
+
+### Changed
+- `describeAndEmbedFile()` is now a deprecated thin adapter over `processFileContent()` for backward-compat with the importer runner.
+- `upsertFileChunks` accepts `Array<Float32Array | null>` — null embeddings are stored as NULL in the DB (for `--no-embed` mode).
+- `searchKeyword()` now UNIONs `fts_file_chunks` results, with a graceful fallback for old DBs that predate the FTS table.
+- `searchVector()` pre-fetches all file metadata in one query to avoid N+1 (was one query per file chunk match).
+- `src/types.ts` — `SearchResult.chunk_source` widened to `string` to accommodate `page-N`, `transcript`, `para-N` etc.
+
+### Fixed
+- `--no-embed` flag was silently ignored: `args["no-embed"]` evaluates falsy with citty's `--no-*` negation convention. Fixed by adding an explicit `embed: { type: "boolean", default: true }` arg so `--no-embed` correctly sets `args.embed = false`.
+
+---
+
 ## [0.5.0] — 2025-06-11
 
 ### Added

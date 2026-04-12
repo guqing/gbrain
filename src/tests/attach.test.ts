@@ -100,7 +100,7 @@ describe("attachFileRecord()", () => {
     original_name: "photo.png",
     mime_type: "image/png",
     size_bytes: 1024,
-    description: null,
+    description: null, processed_at: null,
     ...overrides,
   });
 
@@ -160,7 +160,7 @@ describe("detachFile()", () => {
       original_name: "photo.png",
       mime_type: "image/png",
       size_bytes: 512,
-      description: null,
+      description: null, processed_at: null,
     });
   });
 
@@ -185,7 +185,7 @@ describe("detachFile()", () => {
       original_name: "photo.png",
       mime_type: "image/png",
       size_bytes: 512,
-      description: null,
+      description: null, processed_at: null,
     });
     const path = engine.detachFile("concepts/test", "img-abc", true);
     expect(path).toBeNull(); // not purged — still referenced
@@ -229,7 +229,7 @@ describe("recordFileReference()", () => {
       original_name: "ref.png",
       mime_type: "image/png",
       size_bytes: 256,
-      description: null,
+      description: null, processed_at: null,
     });
   });
 
@@ -352,7 +352,7 @@ describe("listFiles()", () => {
       original_name: `${slug}.png`,
       mime_type: "image/png",
       size_bytes: 100,
-      description: null,
+      description: null, processed_at: null,
     });
 
   test("with pageSlug — returns only that page's files in display_order", () => {
@@ -390,7 +390,7 @@ describe("setFileDescription()", () => {
       original_name: "desc.png",
       mime_type: "image/png",
       size_bytes: 300,
-      description: null,
+      description: null, processed_at: null,
     });
   });
 

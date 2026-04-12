@@ -138,8 +138,14 @@ export default defineCommand({
       // Truncate to 46 chars for column alignment
       const name = display.length > 46 ? display.slice(0, 45) + "…" : display;
       const typeStr = r.type === "page" ? "page" : r.type;
+
+      // Show chunk source for non-image file results (PDF page, DOCX para, transcript)
+      const chunkSrc = r.result_kind === "file" && r.chunk_source && r.chunk_source !== "description" && r.chunk_source !== "file_description"
+        ? `  [${r.chunk_source}]`
+        : "";
+
       const meta = `${typeStr}  ${r.score.toFixed(3)}`;
-      console.log(` ${label}  ${name.padEnd(48)} ${meta}`);
+      console.log(` ${label}  ${name.padEnd(48)} ${meta}${chunkSrc}`);
 
       // Snippet: break at word boundary near 120 chars
       const raw = r.chunk_text.replace(/\s+/g, " ").trim();

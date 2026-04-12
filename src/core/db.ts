@@ -175,6 +175,7 @@ CREATE TABLE IF NOT EXISTS files (
   mime_type     TEXT    NOT NULL,
   size_bytes    INTEGER NOT NULL,
   description   TEXT,
+  processed_at  TEXT,
   created_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
@@ -208,14 +209,15 @@ CREATE INDEX IF NOT EXISTS idx_file_references_file   ON file_references(file_sl
 CREATE INDEX IF NOT EXISTS idx_file_references_source ON file_references(source_type, source_ref);
 
 CREATE TABLE IF NOT EXISTS file_chunks (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  file_slug   TEXT    NOT NULL REFERENCES files(slug) ON DELETE CASCADE,
-  chunk_index INTEGER NOT NULL DEFAULT 0,
-  chunk_text  TEXT    NOT NULL,
-  embedding   BLOB,
-  model       TEXT    NOT NULL DEFAULT 'text-embedding-3-small',
-  embedded_at TEXT,
-  created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  file_slug    TEXT    NOT NULL REFERENCES files(slug) ON DELETE CASCADE,
+  chunk_index  INTEGER NOT NULL DEFAULT 0,
+  chunk_text   TEXT    NOT NULL,
+  chunk_source TEXT    NOT NULL DEFAULT 'description',
+  embedding    BLOB,
+  model        TEXT    NOT NULL DEFAULT 'text-embedding-3-small',
+  embedded_at  TEXT,
+  created_at   TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
   UNIQUE(file_slug, chunk_index)
 );
 
@@ -253,6 +255,31 @@ WHEN old.description IS NOT NULL
 BEGIN
   INSERT INTO fts_files(fts_files, rowid, description)
     VALUES('delete', old.rowid, old.description);
+END;
+
+CREATE VIRTUAL TABLE IF NOT EXISTS fts_file_chunks USING fts5(
+  chunk_text,
+  content='file_chunks',
+  content_rowid='id',
+  tokenize='porter unicode61'
+);
+
+CREATE TRIGGER IF NOT EXISTS file_chunks_ai AFTER INSERT ON file_chunks
+BEGIN
+  INSERT INTO fts_file_chunks(rowid, chunk_text) VALUES (new.id, new.chunk_text);
+END;
+
+CREATE TRIGGER IF NOT EXISTS file_chunks_au AFTER UPDATE OF chunk_text ON file_chunks
+BEGIN
+  INSERT INTO fts_file_chunks(fts_file_chunks, rowid, chunk_text)
+    VALUES('delete', old.id, old.chunk_text);
+  INSERT INTO fts_file_chunks(rowid, chunk_text) VALUES (new.id, new.chunk_text);
+END;
+
+CREATE TRIGGER IF NOT EXISTS file_chunks_ad AFTER DELETE ON file_chunks
+BEGIN
+  INSERT INTO fts_file_chunks(fts_file_chunks, rowid, chunk_text)
+    VALUES('delete', old.id, old.chunk_text);
 END;
 
 -- ── Import Runs (v0.5) ───────────────────────────────────────────────────────
@@ -429,6 +456,7 @@ export function migrateDb(db: Database): void {
       mime_type     TEXT    NOT NULL,
       size_bytes    INTEGER NOT NULL,
       description   TEXT,
+      processed_at  TEXT,
       created_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
     );
     CREATE UNIQUE INDEX IF NOT EXISTS idx_files_sha256 ON files(sha256);
@@ -459,14 +487,15 @@ export function migrateDb(db: Database): void {
     CREATE INDEX IF NOT EXISTS idx_file_references_source ON file_references(source_type, source_ref);
 
     CREATE TABLE IF NOT EXISTS file_chunks (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      file_slug   TEXT    NOT NULL REFERENCES files(slug) ON DELETE CASCADE,
-      chunk_index INTEGER NOT NULL DEFAULT 0,
-      chunk_text  TEXT    NOT NULL,
-      embedding   BLOB,
-      model       TEXT    NOT NULL DEFAULT 'text-embedding-3-small',
-      embedded_at TEXT,
-      created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      file_slug    TEXT    NOT NULL REFERENCES files(slug) ON DELETE CASCADE,
+      chunk_index  INTEGER NOT NULL DEFAULT 0,
+      chunk_text   TEXT    NOT NULL,
+      chunk_source TEXT    NOT NULL DEFAULT 'description',
+      embedding    BLOB,
+      model        TEXT    NOT NULL DEFAULT 'text-embedding-3-small',
+      embedded_at  TEXT,
+      created_at   TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
       UNIQUE(file_slug, chunk_index)
     );
     CREATE INDEX IF NOT EXISTS idx_file_chunks_file ON file_chunks(file_slug);
@@ -548,12 +577,37 @@ export function migrateDb(db: Database): void {
     );
     CREATE INDEX IF NOT EXISTS idx_import_checkpoints_run    ON import_checkpoints(last_run_id);
     CREATE INDEX IF NOT EXISTS idx_import_checkpoints_source ON import_checkpoints(source_type, source_ref, status);
+
+    CREATE VIRTUAL TABLE IF NOT EXISTS fts_file_chunks USING fts5(
+      chunk_text,
+      content='file_chunks',
+      content_rowid='id',
+      tokenize='porter unicode61'
+    );
+
+    CREATE TRIGGER IF NOT EXISTS file_chunks_ai AFTER INSERT ON file_chunks
+    BEGIN
+      INSERT INTO fts_file_chunks(rowid, chunk_text) VALUES (new.id, new.chunk_text);
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS file_chunks_au AFTER UPDATE OF chunk_text ON file_chunks
+    BEGIN
+      INSERT INTO fts_file_chunks(fts_file_chunks, rowid, chunk_text)
+        VALUES('delete', old.id, old.chunk_text);
+      INSERT INTO fts_file_chunks(rowid, chunk_text) VALUES (new.id, new.chunk_text);
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS file_chunks_ad AFTER DELETE ON file_chunks
+    BEGIN
+      INSERT INTO fts_file_chunks(fts_file_chunks, rowid, chunk_text)
+        VALUES('delete', old.id, old.chunk_text);
+    END;
   `);
 
-  // Rebuild FTS index from any existing described files.
-  // fts_files is a content table — CREATE IF NOT EXISTS leaves it empty on existing DBs.
+  // Rebuild FTS indexes from any existing rows.
   // INSERT('rebuild') is idempotent and fast; harmless on fresh DBs.
   db.exec(`INSERT INTO fts_files(fts_files) VALUES('rebuild')`);
+  db.exec(`INSERT INTO fts_file_chunks(fts_file_chunks) VALUES('rebuild')`);
 }
 
 export function openDb(dbPath: string): Database {
