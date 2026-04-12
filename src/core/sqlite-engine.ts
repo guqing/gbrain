@@ -447,11 +447,14 @@ export class SqliteEngine implements BrainEngine {
   // Hybrid search: Reciprocal Rank Fusion of FTS5 + vector results.
   // RRF formula: score = sum(1 / (60 + rank)) across both lists.
   // Requires embedding to be pre-computed by caller (pass null to skip vector leg).
-  hybridSearch(query: string, embedding: Float32Array | null, opts?: SearchOpts): SearchResult[] {
+  // opts.keywordQuery: use a separate (original/clean) query for FTS to avoid
+  // FTS5 parse failures from LLM-expanded queries that contain '…' or special chars.
+  hybridSearch(query: string, embedding: Float32Array | null, opts?: SearchOpts & { keywordQuery?: string }): SearchResult[] {
     const limit = opts?.limit ?? 10;
     const rrf_k = 60;
 
-    const kwResults = this.searchKeyword(query, { ...opts, limit: limit * 3 });
+    const kwQuery = opts?.keywordQuery ?? query;
+    const kwResults = this.searchKeyword(kwQuery, { ...opts, limit: limit * 3 });
     const vecResults = embedding
       ? this.searchVector(embedding, { ...opts, limit: limit * 3 })
       : [];
