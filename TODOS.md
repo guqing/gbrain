@@ -104,6 +104,19 @@
 - **Pros:** Increases knowledge quality and trust. Low-effort change — just update the compile system prompt.
 - **Cons:** Makes compiled truth longer. LLMs sometimes resist per-fact citation formatting.
 
+## Two-stage cross-encoder reranker (v0.9)
+
+- **What:** Add an optional second-stage reranker after hybrid BM25F+vector retrieval. Retrieve top-30 candidates, then score each with a lightweight cross-encoder model (ONNX runtime, runs locally, no API cost) to get query-aware relevance scores. Chinese-compatible models: `cross-encoder/ms-marco-MiniLM-L-6-v2` (English) or a bilingual model via HuggingFace.
+- **Why:** v0.8 BM25F title weighting + RRF title bonus raised MRR@10 from 0.771 → 0.917, but Q1 "redis 限流" still lands at rank 3. The target "统计API调用次数" is a body-match case — the query terms appear in the page body, not the title. Cross-encoder reranking is the standard solution for body-match precision: it reads the full (query, document) pair and scores semantic relevance, not keyword overlap.
+- **Expected impact:** MRR@10 0.917 → ~0.95+. Body-match queries get the same treatment as title-match queries.
+- **Implementation sketch:**
+  1. Download ONNX cross-encoder model to `~/.exo/models/` on first use (lazy download, ~25MB)
+  2. In `hybridSearch()`, after RRF fusion, pass top-30 to `rerankWithCrossEncoder(query, results)`
+  3. Cross-encoder scores override RRF scores for final sort
+  4. Gate behind `config.search.reranker = "cross-encoder"` (default: off until model is validated for Chinese)
+- **Open questions:** Best bilingual (Chinese + English) cross-encoder for personal KB queries? Chinese support needs empirical validation — run eval framework before shipping.
+- **Depends on / blocked by:** onnxruntime-node or @xenova/transformers available in Bun environment.
+
 ## Originals folder / exo capture --original (v0.9)
 
 - **What:** A dedicated space for capturing the user's own original thinking, separate from information collected from external sources. `exo capture --original "my insight here"` stores to `originals/` slug prefix with an "originality" marker in metadata.
