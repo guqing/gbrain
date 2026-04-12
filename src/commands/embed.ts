@@ -22,7 +22,7 @@ export default defineCommand({
       (cfg.embed.base_url.includes("localhost") || cfg.embed.base_url.includes("127.0.0.1"));
     if (!cfg.embed.api_key && !isLocal) {
       console.error("✗ No embedding API key configured.");
-      console.error("  gbrain config set embed.api_key <key>");
+      console.error("  exo config set embed.api_key <key>");
       console.error("  Or: export OPENAI_API_KEY=<key>");
       process.exit(1);
     }
@@ -39,7 +39,7 @@ export default defineCommand({
       console.error(`    stored     = ${storedModel}`);
       console.error(`    configured = ${configuredModel}`);
       console.error(`  Existing embeddings are incompatible with the new model.`);
-      console.error(`  Run: gbrain embed --all --rebuild  to clear and re-embed everything.`);
+      console.error(`  Run: exo embed --all --rebuild  to clear and re-embed everything.`);
       process.exit(1);
     }
 

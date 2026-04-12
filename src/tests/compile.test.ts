@@ -226,7 +226,7 @@ describe("slugify", () => {
 
 describe("runCompile", () => {
   test("[K] empty inbox returns zero counts", async () => {
-    const tmpDb = `/tmp/gbrain-compile-test-empty-${Date.now()}.db`;
+    const tmpDb = `/tmp/exo-compile-test-empty-${Date.now()}.db`;
     const { Database: Db } = await import("bun:sqlite");
     const db = new Db(tmpDb);
     db.exec(SCHEMA);
@@ -248,7 +248,7 @@ describe("runCompile", () => {
 
   test("[D] create action produces a concept page", async () => {
     // runCompile opens its own DB via loadConfig, so we use a temp file
-    const tmpDb = `/tmp/gbrain-compile-test-${Date.now()}.db`;
+    const tmpDb = `/tmp/exo-compile-test-${Date.now()}.db`;
     const { Database: Db } = await import("bun:sqlite");
     const db = new Db(tmpDb);
     db.exec(SCHEMA);
@@ -300,7 +300,7 @@ describe("runCompile", () => {
   });
 
   test("[E] noise action logs to brain_meta and removes inbox item", async () => {
-    const tmpDb = `/tmp/gbrain-compile-test-${Date.now()}.db`;
+    const tmpDb = `/tmp/exo-compile-test-${Date.now()}.db`;
     const { Database: Db } = await import("bun:sqlite");
     const db = new Db(tmpDb);
     db.exec(SCHEMA);
@@ -344,7 +344,7 @@ describe("runCompile", () => {
   });
 
   test("[G] LLM error preserves inbox item and records in errors", async () => {
-    const tmpDb = `/tmp/gbrain-compile-test-${Date.now()}.db`;
+    const tmpDb = `/tmp/exo-compile-test-${Date.now()}.db`;
     const { Database: Db } = await import("bun:sqlite");
     const db = new Db(tmpDb);
     db.exec(SCHEMA);

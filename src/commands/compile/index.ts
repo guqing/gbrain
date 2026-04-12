@@ -1,7 +1,7 @@
 import { defineCommand } from "citty";
 import { openDb, resolveDbPath } from "../../core/db.ts";
 import { SqliteEngine } from "../../core/sqlite-engine.ts";
-import { loadConfig, type GbrainConfig } from "../../core/config.ts";
+import { loadConfig, type ExoConfig } from "../../core/config.ts";
 import { slugify, deconflictSlug } from "../../core/utils.ts";
 import { callLlm, type FetchFn } from "./llm.ts";
 import type { Page } from "../../types.ts";
@@ -101,7 +101,7 @@ export interface RunCompileOpts {
   interactive: boolean;
   fetchFn?: FetchFn;
   /** Override compile config (useful in tests to inject api_key without a real config file) */
-  compileConfig?: GbrainConfig["compile"];
+  compileConfig?: ExoConfig["compile"];
 }
 
 export interface RunCompileResult {

@@ -262,7 +262,7 @@ function harvestCodex(
 
   console.log(`Found ${all.length} Codex sessions. Processing...\n`);
   console.log("  Note: Codex sessions contain AI reasoning narration. Filtering heuristically.");
-  console.log("  For better signal, set OPENAI_API_KEY and use gbrain digest after harvesting.\n");
+  console.log("  For better signal, set OPENAI_API_KEY and use exo digest after harvesting.\n");
 
   let created = 0, updated = 0;
   for (const session of all) {
@@ -461,7 +461,7 @@ export default defineCommand({
     const limit = parseInt(String(args.limit ?? "50"), 10);
 
     if (useInbox && !dryRun) {
-      console.log(`ℹ  Writing to inbox (use --direct to write directly to brain).\n   Run 'gbrain compile' to process captured items.\n`);
+      console.log(`ℹ  Writing to inbox (use --direct to write directly to brain).\n   Run 'exo compile' to process captured items.\n`);
     }
 
     let totalCreated = 0, totalUpdated = 0;
@@ -494,11 +494,11 @@ export default defineCommand({
     if (!dryRun) {
       if (useInbox) {
         console.log(`\n✓ Harvest complete: ${totalCreated} items added to inbox.`);
-        console.log(`  Run 'gbrain inbox' to review, 'gbrain compile' to process.`);
+        console.log(`  Run 'exo inbox' to review, 'exo compile' to process.`);
       } else {
         console.log(`\n✓ Harvest complete: ${totalCreated} created, ${totalUpdated} updated.`);
         if (totalCreated + totalUpdated > 0) {
-          console.log(`  Run 'gbrain embed --all' to generate embeddings for semantic search.`);
+          console.log(`  Run 'exo embed --all' to generate embeddings for semantic search.`);
         }
       }
     }

@@ -72,7 +72,7 @@ export default defineCommand({
     }
 
     if (args.describe && !cfg.vision?.api_key) {
-      console.error("✗ Vision API not configured. Set api_key with: gbrain config set vision.api_key <key>");
+      console.error("✗ Vision API not configured. Set api_key with: exo config set vision.api_key <key>");
       process.exit(1);
     }
 
@@ -138,14 +138,14 @@ export default defineCommand({
       } catch (err) {
         processingWarning = String(err);
         console.warn(`⚠ Content extraction failed: ${processingWarning}`);
-        console.warn(`  Run: gbrain describe ${finalSlug}`);
+        console.warn(`  Run: exo describe ${finalSlug}`);
       }
     }
 
     const needsExtract = !processed && (isImageMime(mime) || isPdf || isDocx);
 
     if (args.json) {
-      const nextAction = needsExtract ? `gbrain describe ${finalSlug}` : null;
+      const nextAction = needsExtract ? `exo describe ${finalSlug}` : null;
       // For duplicates, the canonical file_path is the one already in the DB.
       const actualFilePath = attachResult.isDuplicate
         ? (engine.getFile(finalSlug)?.file_path ?? relPath)
@@ -163,7 +163,7 @@ export default defineCommand({
       console.log(`✓ Attached ${finalSlug}${ext} to ${pageSlug}`);
       if (needsExtract) {
         const hint = isPdf || isDocx ? "extract text with" : "describe with";
-        console.log(`  Next: gbrain describe ${finalSlug}  (${hint} gbrain describe)`);
+        console.log(`  Next: exo describe ${finalSlug}  (${hint} exo describe)`);
       }
     }
   },

@@ -64,7 +64,7 @@ export default defineCommand({
 
     // Validate vision config if --describe
     if (args.describe && !cfg.vision?.api_key) {
-      console.error("✗ Vision API not configured. Set with: gbrain config set vision.api_key <key>");
+      console.error("✗ Vision API not configured. Set with: exo config set vision.api_key <key>");
       process.exit(1);
     }
 
@@ -121,7 +121,7 @@ export default defineCommand({
       console.log(JSON.stringify({
         summary: `Imported ${result.completed} conversations, ${result.imagesAttached} images attached`,
         next_action: result.imagesAttached > 0 && !args.describe
-          ? "gbrain describe --all"
+          ? "exo describe --all"
           : null,
         details: result,
       }, null, 2));
@@ -131,10 +131,10 @@ export default defineCommand({
       console.log(`  Conversations: ${result.completed} imported, ${result.failed} failed, ${result.skipped} skipped`);
       console.log(`  Images: ${result.imagesAttached} attached, ${result.imagesUnmatched} unmatched`);
       if (result.runId > 0) {
-        console.log(`  Run ID: ${result.runId} (gbrain imports ${result.runId} for details)`);
+        console.log(`  Run ID: ${result.runId} (exo imports ${result.runId} for details)`);
       }
       if (result.imagesAttached > 0 && !args.describe) {
-        console.log(`  Next: gbrain describe --all`);
+        console.log(`  Next: exo describe --all`);
       }
     }
   },

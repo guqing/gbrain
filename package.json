@@ -1,18 +1,18 @@
 {
-  "name": "@guqings/gbrain",
+  "name": "@guqings/exo",
   "version": "0.6.0",
-  "description": "Personal knowledge brain — CLI + MCP server. SQLite + FTS5 + vector search.",
+  "description": "Your exocortex. Ingest ChatGPT exports, PDFs, and files into a searchable knowledge base. Hybrid FTS5 + vector search. LLM-compiled knowledge pages. MCP server for Claude Code and Cursor.",
   "type": "module",
   "bin": {
-    "gbrain": "./bin/gbrain.ts"
+    "exo": "./bin/exo.ts"
   },
   "scripts": {
     "dev": "bun run src/cli.ts",
-    "build": "bun build --compile --minify src/cli.ts --outfile bin/gbrain",
+    "build": "bun build --compile --minify src/cli.ts --outfile bin/exo",
     "test": "bun test"
   },
   "files": [
-    "bin/gbrain.ts",
+    "bin/exo.ts",
     "src/",
     "!src/tests/"
   ],
@@ -23,11 +23,18 @@
     "access": "public"
   },
   "keywords": [
-    "knowledge-base",
-    "mcp",
+    "exocortex",
+    "second-brain",
+    "personal-knowledge",
+    "pkm",
+    "chatgpt-export",
+    "mcp-server",
+    "claude-code",
+    "rag",
     "sqlite",
+    "vector-search",
     "cli",
-    "rag"
+    "gbrain"
   ],
   "license": "MIT",
   "dependencies": {

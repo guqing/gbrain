@@ -68,7 +68,7 @@ export function resolveFileSlug(
 export function getFilesDir(): string {
   return join(
     process.env["HOME"] ?? (process.platform === "win32" ? process.env["USERPROFILE"] ?? "" : "/"),
-    ".gbrain",
+    ".exo",
     "files",
   );
 }

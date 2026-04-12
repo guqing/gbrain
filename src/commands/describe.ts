@@ -48,7 +48,7 @@ export default defineCommand({
     const filesDir = getFilesDir();
 
     if (!cfg.vision?.api_key) {
-      console.error("✗ Vision API not configured. Set with: gbrain config set vision.api_key <key>");
+      console.error("✗ Vision API not configured. Set with: exo config set vision.api_key <key>");
       process.exit(1);
     }
 
@@ -125,11 +125,11 @@ export default defineCommand({
       if (process.stdout.isTTY) process.stdout.write("\n");
 
       if (interrupted) {
-        console.log(`Interrupted after ${completed + failed}/${total}. Resume with: gbrain describe --all`);
+        console.log(`Interrupted after ${completed + failed}/${total}. Resume with: exo describe --all`);
       } else {
         console.log(`✓ Processed ${completed} file(s), ${failed} failed, ${total - completed - failed} skipped`);
         if (failed > 0) {
-          console.log("  Next: gbrain describe --all  (retries failed files)");
+          console.log("  Next: exo describe --all  (retries failed files)");
         }
       }
       return;
@@ -180,7 +180,7 @@ export default defineCommand({
     if (previewText) {
       console.log(`  "${previewText.slice(0, 60)}${previewText.length > 60 ? "..." : ""}"`);
       const firstWords = previewText.split(/\s+/).slice(0, 3).join(" ");
-      console.log(`  Next: gbrain search "${firstWords}"`);
+      console.log(`  Next: exo search "${firstWords}"`);
     }
   },
 });

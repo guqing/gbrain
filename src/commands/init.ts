@@ -49,11 +49,11 @@ export default defineCommand({
 
     console.log("");
     console.log("Next steps:");
-    console.log(`  gbrain put concepts/my-first-note  # add a page`);
-    console.log(`  gbrain search "your query"          # search the brain`);
-    console.log(`  gbrain setup-mcp                    # connect to Claude Code`);
+    console.log(`  exo put concepts/my-first-note  # add a page`);
+    console.log(`  exo search "your query"          # search the brain`);
+    console.log(`  exo setup-mcp                    # connect to Claude Code`);
     console.log("");
-    console.log(`  Configure embeddings: gbrain config set embed.base_url <url>`);
+    console.log(`  Configure embeddings: exo config set embed.base_url <url>`);
     console.log(`  Config file: ${getConfigPath()}`);
   },
 });

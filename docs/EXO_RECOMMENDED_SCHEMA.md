@@ -882,7 +882,7 @@ When you mention someone or something in conversation:
 
 **log.md** — chronological record of ingests and updates. Append-only.
 
-At scale (500+ pages), add search tooling (embeddings, BM25, or tools like gbrain). At moderate scale, grep works well.
+At scale (500+ pages), add search tooling (embeddings, BM25, or tools like exo). At moderate scale, grep works well.
 
 ### Write hotspots and concurrency
 

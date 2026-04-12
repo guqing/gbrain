@@ -1,6 +1,6 @@
 /**
  * Shared MCP tool dispatcher — single source of truth for tool handler logic.
- * Used by both the MCP server (src/mcp/server.ts) and the CLI `gbrain call` command.
+ * Used by both the MCP server (src/mcp/server.ts) and the CLI `exo call` command.
  *
  * Returns a result object matching MCP's CallToolResult shape:
  *   { content: [{ type: "text", text: string }], isError?: boolean }
@@ -274,7 +274,7 @@ export async function dispatchTool(
     const embeddedPages = Math.round(health.page_count * health.embed_coverage);
     const lines = [
       `Total pages: ${health.page_count}`,
-      `Embeddings: ${embeddedPages}/${health.page_count} (${embPct}%)${health.missing_embeddings > 0 ? " -- run 'gbrain embed' to fill gaps" : " ✓"}`,
+      `Embeddings: ${embeddedPages}/${health.page_count} (${embPct}%)${health.missing_embeddings > 0 ? " -- run 'exo embed' to fill gaps" : " ✓"}`,
       `Stale pages: ${health.stale_pages}${health.stale_pages > 0 ? " !" : " ✓"}`,
       `Missing embeddings: ${health.missing_embeddings}${health.missing_embeddings > 0 ? " !" : " ✓"}`,
     ];
@@ -305,7 +305,7 @@ export async function dispatchTool(
           {
             inbox_count: inboxPages.length,
             would_process: Math.min(inboxPages.length, limit),
-            run: `gbrain compile --limit ${limit}`,
+            run: `exo compile --limit ${limit}`,
           },
           null,
           2,

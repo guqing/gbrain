@@ -9,7 +9,7 @@ import {
 } from "../core/config.ts";
 
 export default defineCommand({
-  meta: { name: "config", description: "View and set gbrain configuration" },
+  meta: { name: "config", description: "View and set exo configuration" },
   args: {
     action: {
       type: "positional",
@@ -31,7 +31,7 @@ export default defineCommand({
     const action = args.action as string | undefined;
 
     if (!action || action === "list") {
-      // gbrain config [list]
+      // exo config [list]
       const entries = listConfig();
       const maxKey = Math.max(...entries.map(e => e.key.length));
       const maxVal = Math.max(...entries.map(e => e.value.length));
@@ -46,7 +46,7 @@ export default defineCommand({
 
     if (action === "get") {
       if (!args.key) {
-        console.error("✗ Usage: gbrain config get <key>");
+        console.error("✗ Usage: exo config get <key>");
         console.error(`  Keys: ${CONFIG_KEYS.join(", ")}`);
         process.exit(1);
       }
@@ -63,7 +63,7 @@ export default defineCommand({
 
     if (action === "set") {
       if (!args.key || args.value === undefined) {
-        console.error("✗ Usage: gbrain config set <key> <value>");
+        console.error("✗ Usage: exo config set <key> <value>");
         console.error(`  Keys: ${CONFIG_KEYS.join(", ")}`);
         process.exit(1);
       }
@@ -84,7 +84,7 @@ export default defineCommand({
     }
 
     console.error(`✗ Unknown action: ${action}`);
-    console.error("  Usage: gbrain config [list | get <key> | set <key> <value>]");
+    console.error("  Usage: exo config [list | get <key> | set <key> <value>]");
     process.exit(1);
   },
 });

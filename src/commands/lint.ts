@@ -20,7 +20,7 @@ export default defineCommand({
     if (inbox_queue.count > 0) {
       const oldest = inbox_queue.oldest_date ? inbox_queue.oldest_date.slice(0, 10) : "?";
       console.log(`\nINBOX QUEUE (${inbox_queue.count} items waiting — oldest: ${oldest}):`);
-      console.log(`  Run 'gbrain compile' to process.`);
+      console.log(`  Run 'exo compile' to process.`);
     }
 
     if (stale.length) {
