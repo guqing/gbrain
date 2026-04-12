@@ -488,6 +488,20 @@ export class SqliteEngine implements BrainEngine {
       }
     }
 
+    // Image/file description chunks match many text queries because their
+    // LLM-generated descriptions are verbose and semantically rich.
+    // Apply a soft penalty so text pages rank above images unless the file
+    // result is decisively more relevant. A user querying text knowledge
+    // almost never wants an image result surfaced above a page.
+    for (const entry of scores.values()) {
+      if (
+        entry.result.result_kind === 'file' &&
+        (entry.result.chunk_source === 'file_description' || entry.result.chunk_source === 'description')
+      ) {
+        entry.rrf *= 0.35;
+      }
+    }
+
     return [...scores.values()]
       .sort((a, b) => b.rrf - a.rrf)
       .slice(0, limit)
