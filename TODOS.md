@@ -27,6 +27,101 @@
 - **Context:** v0.6 AudioExtractor should throw a clear error for >25MB: "file exceeds Whisper 25MB limit — chunked upload support coming in v0.6.1". This TODO implements the chunking.
 - **Depends on / blocked by:** v0.6 AudioExtractor.
 
+## Implement Layer 1+2 test plan (v0.7)
+
+- **What:** Write the 15 unit tests defined in the design doc test plan — `src/test/insight.test.ts` (6 cases) and `src/test/research.test.ts` (9 cases).
+- **Why:** Current test coverage for the insight hook and deep research pipeline is 0%. Tests are part of the spec, not an afterthought.
+- **Pros:** Catches synthesis timeout crash (critical gap), evaluateAndExtract fallback, TTY guard, Exa API failure handling. All 15 cases use `globalThis.fetch` monkey-patch — no real API calls needed.
+- **Cons:** ~2h setup. Must be done before merging v0.7 to main.
+- **Context:** Design doc section 9 ("Test Plan") has exact test names, mock patterns, and assertions. The synthesis `llmCall` timeout path was identified as a critical gap — if not covered, it crashes silently.
+- **Depends on / blocked by:** Layer 1 + Layer 2 implementation (insight.ts, commands/research.ts, core/research.ts).
+
+## research/ slug prefix for research reports (v0.7 or v0.8)
+
+- **What:** Store deep research reports at `research/timestamp-hash` instead of `inbox/timestamp-hash` so they're distinguishable from regular put entries.
+- **Why:** Currently `exo compile` and `exo query` can't tell which content came from research reports vs regular puts. A slug prefix enables filtering.
+- **Pros:** Enables `exo query --source=research` in the future; makes inbox cleaner.
+- **Cons:** Slight change to `generateInboxSlug` call pattern; all existing research outputs would stay in inbox (no migration needed, just new writes go to the new prefix).
+- **Context:** Open Question #1 in design doc. Implementation: pass `research/` prefix into slug generation in `commands/research.ts` instead of using `generateInboxSlug` directly.
+- **Depends on / blocked by:** v0.7 research command shipping first.
+
+## useAutoprompt config toggle for Exa (v0.7.1)
+
+- **What:** Add `research.use_autoprompt = false` option to `~/.exo/config.toml` so users can disable Exa's automatic query rewriting.
+- **Why:** Exa's `useAutoprompt: true` rewrites the query before searching, which usually helps but sometimes changes direction unexpectedly (e.g., a precise technical query gets softened).
+- **Pros:** Gives power users full control over search fidelity; easy to add — one config key + one `if` in the Exa fetch call.
+- **Cons:** Most users won't need it. Default behavior (`true`) is usually better for discovery.
+- **Context:** Open Question #3 in design doc. Implementation: read `config.research?.use_autoprompt ?? true` in `deepResearch()` and pass to Exa `useAutoprompt` field.
+- **Depends on / blocked by:** v0.7 research command shipping first.
+
+## Fix exo query snippet quality (v0.6.3)
+
+- **What:** Fix the snippet displayed for each query result so it shows the content *around* the matched terms, not just the first 120 chars of the chunk. Also split page chunks at `---` boundaries so compiled_truth and timeline content never appear in the same snippet.
+- **Why:** `exo query 'redis 限流'` shows snippets like `...多级缓存 - …限流… --- # 四、…Redis… 过期策略` — the `---` separator leaks in, and the matched term often appears near the end of the snippet not near the start. This makes results feel unreadable.
+- **Pros:** Pure quality fix, no new commands or deps. Immediately improves every user's query experience.
+- **Cons:** Chunk boundary fix needs to re-chunk existing pages in the DB, or at minimum re-chunk on next compile run.
+- **Implementation:**
+  - `src/commands/query.ts:157`: Find first occurrence of any query term in `chunk_text`, show 60 chars before + 200 chars after (with leading/trailing `…`). Fall back to start of chunk if no term found.
+  - `src/core/sqlite-engine.ts` `upsertChunks`: Split page content at `---` boundaries before chunking so compiled_truth and timeline are in separate chunks.
+  - Add `--type <session|page|file>` flag to query command for type filtering.
+
+## Web UI — Next.js embedded in exo serve (v0.8)
+
+- **What:** A full web interface embedded in `exo serve` — built with Next.js (static export), served alongside the existing Hono JSON API. Features: semantic search with highlighted results, multi-modal result display (page cards, file thumbnails, image previews), document list/management, full markdown-rendered article pages, and inline article editing that calls `exo compile`.
+- **Why:** CLI output has a ceiling — can't browse results, see full content, or manage documents visually. A web UI makes exo demo-able and screenshot-able (important for open source growth). The multimodal display is where exo's mixed content (text + images + audio descriptions) becomes truly useful.
+- **Architecture:** Next.js app lives in `web/` with `output: 'export'` in `next.config.js`. `next build` produces `web/out/`. `exo serve` (Hono) serves the static files from `web/out/` and provides JSON API endpoints. Single command, single port, no separate process.
+- **Tech stack:** Next.js (static export) + `react-markdown` for rendering + Tailwind (optional). No external APIs needed — all data from local SQLite via Hono.
+- **API endpoints needed in `src/commands/serve.ts`:**
+  - `GET /api/search?q=&type=&limit=` → calls `engine.hybridSearch()`
+  - `GET /api/page/:slug` → returns page markdown + metadata
+  - `GET /api/list?type=&limit=&offset=` → lists all pages with pagination
+  - `GET /api/files` → lists all files with metadata
+  - `POST /api/compile` → triggers compile for a page slug
+- **UI pages in `web/app/`:**
+  - `/` → document list / dashboard
+  - `/search` → search with result cards, type filter, score display
+  - `/page/[slug]` → full markdown-rendered article with timeline section
+  - `/files` → file browser with image/audio/pdf previews
+- **Build integration:** Add `"build:ui": "cd web && next build"` to `package.json`. The built `web/out/` is included in the npm package. Bun serve command checks for `web/out/index.html` and serves it.
+- **Open questions:** Should `web/out/` be pre-built and committed, or built during npm publish? Hot-reload in dev mode?
+
+## Entity detection + auto-linking (v0.8)
+
+- **What:** When running `exo put`, `exo capture`, or `exo compile`, automatically detect named entities (people, companies, technologies) in the text and suggest or auto-create linked pages, with back-links.
+- **Why:** This is the mechanism that makes a knowledge graph grow organically. From gbrain research: gbrain runs entity detection as a sub-agent on every write. Over time, every mention of "Redis" links to a Redis page, every mention of a person links to their profile page.
+- **Pros:** Knowledge graph emerges naturally without manual work. Backlinks become valuable over time. Core to the "external brain" vision.
+- **Cons:** Requires LLM call on every write (latency + cost). Entity disambiguation is hard (is "Redis" the database or a company name?). Need user confirmation flow to avoid unwanted auto-creation.
+- **Implementation sketch:** After compile/put, run a cheap LLM call (gpt-4.1-mini) to extract entities from new content. Check if entity pages exist. If not, offer to create stub pages. Write back-link to source page's timeline.
+
+## exo maintain / dream cycle (v0.8)
+
+- **What:** A maintenance command that runs a batch of health-check and repair tasks: embed stale chunks, detect orphaned files (file exists but no page references it), detect thin pages (compiled truth under 100 chars), fix broken internal links, citation audit.
+- **Why:** From gbrain research: the "dream cycle" is a nightly maintenance pass that keeps the brain healthy automatically. exo has `exo doctor` for diagnostics, but no equivalent that *fixes* problems proactively.
+- **Pros:** Can be scheduled via cron (`0 2 * * * exo maintain`). Keeps the database clean. Surfaces pages that need attention.
+- **Cons:** LLM calls for thin page detection. Could be slow on large databases.
+- **Implementation:** New command `exo maintain` (alias: `exo dream`). Steps: (1) embed all un-embedded chunks, (2) list orphaned files, (3) list thin pages, (4) detect broken `[[slug]]` links, (5) output a health report.
+
+## Source attribution enforcement in compile (v0.8)
+
+- **What:** When `exo compile` generates compiled truth, enforce the `[Source: who, context, date]` format in the LLM system prompt so every factual claim has a citation.
+- **Why:** From gbrain research: source attribution is what separates a knowledge base from a pile of notes. When you later read compiled truth and wonder "where did this come from?", the citation tells you.
+- **Pros:** Increases knowledge quality and trust. Low-effort change — just update the compile system prompt.
+- **Cons:** Makes compiled truth longer. LLMs sometimes resist per-fact citation formatting.
+
+## Originals folder / exo capture --original (v0.9)
+
+- **What:** A dedicated space for capturing the user's own original thinking, separate from information collected from external sources. `exo capture --original "my insight here"` stores to `originals/` slug prefix with an "originality" marker in metadata.
+- **Why:** From gbrain research: the originals folder captures WHAT YOU THINK, not just what you found. Over time it becomes a record of your intellectual development. Most knowledge tools store external info; few help you capture and develop your own ideas.
+- **Pros:** Differentiates personal brain from search index. Creates a "what I believe" layer separate from "what I've read".
+- **Cons:** Subjective concept. What counts as "original"? Need clear UX for what goes here vs regular capture.
+
+## Deterministic collector recipe docs (v0.9)
+
+- **What:** Write a recipe/guide showing how to build integrations that feed data into exo using the "deterministic collector" pattern: write a script that collects data deterministically (no LLM), outputs markdown, and pipes into `exo import` or `exo put`.
+- **Why:** From gbrain research: gbrain's philosophy is "code for data, LLMs for judgment." This pattern makes it easy for the community to build email/calendar/X/RSS integrations without needing to modify exo core. The guide would show examples: a Python script that fetches recent Gmail → `exo put`, a Node script that syncs Google Calendar events → `exo import`.
+- **Pros:** Unlocks community-built integrations without maintaining them in core. Low effort — just docs and example scripts.
+- **Cons:** Docs need maintenance as exo API changes.
+
 ## Completed
 
 ### v0.6 PDF / OCR ingestion
