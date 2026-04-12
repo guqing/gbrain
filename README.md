@@ -1,10 +1,35 @@
+<div align="center">
+
 # exo
 
-Your exocortex. CLI + MCP server for personal knowledge management.
+**Your exocortex. CLI + MCP server for personal knowledge management.**
 
-AI coding sessions close and the experience disappears. ChatGPT threads pile up with nowhere to go. Notes accumulate but never get flagged as stale. exo solves all three.
+[![npm version](https://img.shields.io/npm/v/@guqings/exo?color=blue)](https://www.npmjs.com/package/@guqings/exo)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](#license)
+[![Bun](https://img.shields.io/badge/runtime-Bun%201.x-orange)](https://bun.sh)
+
+[English](README.md) | [中文](README.zh.md)
+
+</div>
+
+---
+
+AI coding sessions close and the experience disappears. ChatGPT threads pile up with nowhere to go. Notes accumulate but never get flagged as stale. **exo solves all three.**
 
 Ingest ChatGPT exports, PDFs, images, and markdown files. Let LLMs compile raw sessions and conversations into structured knowledge pages. Search everything with hybrid FTS5 + vector search and LLM query expansion. Wire it into Claude Code or Cursor as an MCP server so your AI tools can read and write your brain directly.
+
+## Table of Contents
+
+- [Install](#install)
+- [Quick start](#quick-start)
+- [Commands](#commands)
+- [Configuration](#configuration)
+- [Page format](#page-format)
+- [Hybrid search](#hybrid-search)
+- [AI ingestion](#ai-ingestion)
+- [MCP server](#mcp-server)
+- [Lint](#lint)
+- [Development](#development)
 
 ---
 
