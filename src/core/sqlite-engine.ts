@@ -502,8 +502,20 @@ export class SqliteEngine implements BrainEngine {
       }
     }
 
+    // Cap file/image results: at most 3 file results in any top-K set.
+    // When FTS only finds 2-3 text pages, the remaining slots should not all
+    // be filled with image descriptions — that degrades result quality severely.
+    const MAX_FILE_RESULTS = 3;
+    let fileCount = 0;
     return [...scores.values()]
       .sort((a, b) => b.rrf - a.rrf)
+      .filter(({ result }) => {
+        if (result.result_kind === 'file') {
+          if (fileCount >= MAX_FILE_RESULTS) return false;
+          fileCount++;
+        }
+        return true;
+      })
       .slice(0, limit)
       .map(({ result, rrf }) => ({ ...result, score: rrf }));
   }
