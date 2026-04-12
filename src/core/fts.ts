@@ -9,28 +9,85 @@ export interface FtsRow {
   snippet: string;
 }
 
+/** Returns true for CJK Unified Ideographs (BMP + Extension B). */
+function isCJK(cp: number): boolean {
+  return (
+    (cp >= 0x4e00 && cp <= 0x9fff) ||  // CJK Unified Ideographs
+    (cp >= 0x3400 && cp <= 0x4dbf) ||  // CJK Extension A
+    (cp >= 0x20000 && cp <= 0x2a6df)   // CJK Extension B (surrogate pair range)
+  );
+}
+
 /**
- * Preprocess a search query for FTS5 compatibility:
- * 1. Insert spaces at CJK↔ASCII transitions (e.g. "RAG向量" → "RAG 向量")
- * 2. Strip characters that cause FTS5 parse errors (e.g. "…" U+2026)
+ * Expand CJK runs into overlapping unigrams + bigrams + trigrams so that
+ * FTS5's unicode61 tokenizer can index and match any sub-compound.
+ *
+ * "提交邮箱" → "提 提交 提交邮 交 交邮 交邮箱 邮 邮箱 箱"
+ *
+ * Non-CJK text is kept as-is (porter stemmer handles English).
+ * Duplicate tokens are deduplicated before joining.
+ *
+ * Used both at **index time** (stored in pages.search_tokens) and at
+ * **query time** (applied to FTS5 MATCH queries) so the token vocabulary
+ * aligns perfectly.
+ */
+export function buildSearchTokens(text: string): string {
+  const tokens: string[] = [];
+  let i = 0;
+
+  while (i < text.length) {
+    const cp = text.codePointAt(i)!;
+
+    if (isCJK(cp)) {
+      // Collect contiguous CJK run
+      let run = "";
+      while (i < text.length && isCJK(text.codePointAt(i)!)) {
+        run += text[i++];
+      }
+      // Emit unigram, bigram, trigram at each position
+      for (let j = 0; j < run.length; j++) {
+        tokens.push(run[j]!);
+        if (j + 1 < run.length) tokens.push(run.slice(j, j + 2));
+        if (j + 2 < run.length) tokens.push(run.slice(j, j + 3));
+      }
+    } else if (cp <= 32 || cp === 0x3000) {
+      // Whitespace / ideographic space — skip
+      i++;
+    } else {
+      // Non-CJK word (ASCII, Katakana, etc.) — collect until CJK or whitespace
+      let word = "";
+      while (i < text.length) {
+        const c = text.codePointAt(i)!;
+        if (isCJK(c) || c <= 32 || c === 0x3000) break;
+        word += text[i++];
+      }
+      if (word) tokens.push(word);
+    }
+  }
+
+  // Deduplicate while preserving order, then join
+  return [...new Set(tokens)].join(" ");
+}
+
+/**
+ * Preprocess a search query for FTS5:
+ * 1. Expand CJK into bigrams (aligns with search_tokens index)
+ * 2. Strip characters that cause FTS5 parse errors
  */
 function preprocessFtsQuery(raw: string): string {
-  return raw
-    // Space between ASCII/digit and CJK
-    .replace(/([A-Za-z0-9_])([^\x00-\x7F])/g, "$1 $2")
-    // Space between CJK and ASCII/digit
-    .replace(/([^\x00-\x7F])([A-Za-z0-9_])/g, "$1 $2")
-    // Strip ellipsis and other common punctuation that breaks FTS5 MATCH syntax
+  // Expand CJK bigrams first, then clean up
+  const expanded = buildSearchTokens(raw);
+  return expanded
     .replace(/[…\u2014\u2013\u201c\u201d\u2018\u2019]/g, " ")
     .replace(/\s{2,}/g, " ")
     .trim();
 }
 
 /**
- * LIKE-based fallback search used when FTS5 returns no results.
- * Matches pages whose compiled_truth or title contain ALL space-split terms
- * (case-insensitive substring match). Handles Chinese compound queries that
- * FTS5's unicode61 tokenizer cannot split (e.g. "数据库设计").
+ * LIKE-based fallback: matches pages whose content contains ALL original query
+ * terms as substrings. Used only when FTS5 returns fewer results than limit.
+ *
+ * NOTE: terms here must be the ORIGINAL query words, not bigram-expanded tokens.
  */
 function likeSearch(
   db: Database,
@@ -57,7 +114,6 @@ function likeSearch(
 
   const results: FtsRow[] = [];
   for (const row of rows) {
-    // Build a simple snippet from compiled_truth
     const ct = (db.query<{ compiled_truth: string }, [number]>(
       "SELECT compiled_truth FROM pages WHERE id = ? LIMIT 1",
     ).get(row.id)?.compiled_truth ?? "");
@@ -67,14 +123,7 @@ function likeSearch(
       ? "..." + ct.slice(Math.max(0, idx - 20), idx + 80) + "..."
       : ct.slice(0, 100);
 
-    results.push({
-      id: row.id,
-      slug: row.slug,
-      title: row.title,
-      type: row.type,
-      score: 1.0, // flat score for LIKE results
-      snippet,
-    });
+    results.push({ id: row.id, slug: row.slug, title: row.title, type: row.type, score: 1.0, snippet });
     if (results.length >= limit) break;
   }
   return results;
@@ -87,7 +136,8 @@ export function ftsSearch(
 ): FtsRow[] {
   const limit = opts.limit ?? 10;
 
-  // Preprocess: fix CJK-ASCII boundaries and strip FTS5-breaking chars
+  // Expand CJK into bigrams so the MATCH aligns with search_tokens column.
+  // For pure ASCII queries this is a no-op (buildSearchTokens preserves non-CJK words).
   const ftsQuery = preprocessFtsQuery(query);
 
   let rows: { id: number; slug: string; title: string; type: string; rank: number }[] = [];
@@ -103,12 +153,13 @@ export function ftsSearch(
            JOIN pages p ON page_fts.rowid = p.id
            WHERE page_fts MATCH ?
            ORDER BY rank
-           LIMIT ${limit * 3}`  // over-fetch so we can filter by type
+           LIMIT ${limit * 3}`
         )
         .all(ftsQuery);
     } catch { /* FTS parse error — fall through to LIKE */ }
   }
 
+  // snippet() column 1 = compiled_truth (human-readable, not bigram tokens)
   const snippetStmt = db.query<{ snippet: string }, [string, number]>(
     `SELECT snippet(page_fts, 1, '', '', '...', 24) AS snippet
      FROM page_fts
@@ -137,14 +188,12 @@ export function ftsSearch(
     if (results.length >= limit) break;
   }
 
-  // LIKE fallback: if FTS returned fewer results than the limit, supplement
-  // with LIKE-based matches. This handles compound Chinese terms that FTS5
-  // tokenizes as a single opaque token (e.g. "数据库设计" isn't split by
-  // unicode61 into "数据库" + "设计"), ensuring relevant pages are always found.
+  // LIKE fallback: supplement with LIKE-based matches using the ORIGINAL query
+  // words (not bigram tokens) for meaningful substring matching.
   if (results.length < limit) {
-    const terms = ftsQuery.split(/\s+/).filter((t) => t.length >= 2);
-    if (terms.length > 0) {
-      const likeResults = likeSearch(db, terms, { ...opts, limit: limit - results.length });
+    const originalTerms = query.trim().split(/\s+/).filter((t) => t.length >= 1);
+    if (originalTerms.length > 0) {
+      const likeResults = likeSearch(db, originalTerms, { ...opts, limit: limit - results.length });
       for (const r of likeResults) {
         if (!seen.has(r.id)) {
           results.push(r);
