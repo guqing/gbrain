@@ -3,6 +3,7 @@ import { openDb, resolveDbPath } from "../core/db.ts";
 import { SqliteEngine } from "../core/sqlite-engine.ts";
 import { embed } from "../core/embedding.ts";
 import { loadConfig } from "../core/config.ts";
+import { getCachedQuery, setCachedQuery, ensureQueryCacheTable } from "../core/search/cache.ts";
 
 /**
  * Expand a search query using the compile LLM to surface synonyms and related terms.
@@ -19,7 +20,7 @@ async function expandQuery(
 
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10_000);
+    const timer = setTimeout(() => controller.abort(), 3_000);
 
     const res = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
@@ -62,8 +63,14 @@ async function expandQuery(
  * Falls back to the beginning of the text if no terms are found.
  */
 function extractSnippet(text: string, query: string, maxLen = 200): string {
+  // Strip YAML frontmatter (--- ... ---) that leaks into snippets for Copilot session pages
+  let stripped = text;
+  if (stripped.trimStart().startsWith('---')) {
+    const end = stripped.indexOf('\n---', 3);
+    if (end !== -1) stripped = stripped.slice(end + 4);
+  }
   // Strip markdown HR separators that bleed into snippets
-  const clean = text.replace(/\n?-{3,}\n?/g, ' ').replace(/\s+/g, ' ').trim();
+  const clean = stripped.replace(/\n?-{3,}\n?/g, ' ').replace(/\s+/g, ' ').trim();
 
   const terms = query
     .toLowerCase()
@@ -132,25 +139,43 @@ export default defineCommand({
     }
 
     const db = openDb(resolveDbPath(args.db));
+    ensureQueryCacheTable(db);
     const engine = new SqliteEngine(db);
     const limit = args.limit ? parseInt(args.limit, 10) : 10;
     const originalQuery = args.query as string;
 
-    // Query expansion: only when compile.api_key is available and --no-expand not set
     const noExpand = args["no-expand"] as boolean;
     let searchQuery = originalQuery;
-    if (!noExpand && cfg.compile?.api_key) {
-      searchQuery = await expandQuery(originalQuery, cfg.compile);
-    }
-
-    // Embed for vector component (optional — falls back to FTS5-only hybrid)
     let embedding: Float32Array | null = null;
-    if (hasEmbedKey) {
-      try {
-        embedding = await embed(searchQuery);
-      } catch {
-        if (!args.json) console.error("⚠ Embedding failed — falling back to keyword search.");
+
+    // Check cache first — avoids LLM + embed API calls on repeated queries (~10ms)
+    const cached = getCachedQuery(db, originalQuery);
+    if (cached) {
+      searchQuery = cached.expanded;
+      embedding = cached.embedding;
+    } else if (hasEmbedKey || (!noExpand && cfg.compile?.api_key)) {
+      // Parallel: expand query + embed original query simultaneously
+      const [expandedQuery, originalEmbedding] = await Promise.all([
+        (!noExpand && cfg.compile?.api_key)
+          ? expandQuery(originalQuery, cfg.compile).catch(() => originalQuery)
+          : Promise.resolve(originalQuery),
+        hasEmbedKey
+          ? embed(originalQuery).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+
+      searchQuery = expandedQuery;
+      embedding = originalEmbedding;
+
+      // If query was expanded, re-embed the expanded version for better vector match
+      if (hasEmbedKey && searchQuery !== originalQuery) {
+        embedding = await embed(searchQuery).catch(() => originalEmbedding);
       }
+
+      // Cache for next time (fire and forget — don't delay results)
+      try { setCachedQuery(db, originalQuery, searchQuery, embedding); } catch { /* ignore */ }
+    } else if (hasEmbedKey) {
+      embedding = await embed(originalQuery).catch(() => null);
     }
 
     const results = engine.hybridSearch(searchQuery, embedding, {
@@ -162,7 +187,13 @@ export default defineCommand({
     });
 
     if (args.json) {
-      console.log(JSON.stringify(results, null, 2));
+      // Ensure all results have a snippet populated (file results from vector search
+      // have chunk_text but snippet=null — JSON consumers need a non-null snippet).
+      const withSnippets = results.map(r => ({
+        ...r,
+        snippet: r.snippet ?? (r.chunk_text ? extractSnippet(r.chunk_text, originalQuery, 200) : ''),
+      }));
+      console.log(JSON.stringify(withSnippets, null, 2));
       return;
     }
 
