@@ -5,7 +5,7 @@ import { openDb, resolveDbPath } from "../core/db.ts";
 import { SqliteEngine } from "../core/sqlite-engine.ts";
 import { loadConfig } from "../core/config.ts";
 import { fileHash, getMimeType, isImageMime, baseSlug, resolveFileSlug, getFilesDir } from "../core/files.ts";
-import { describeAndEmbedFile } from "../core/file-processing.ts";
+import { processFileContent } from "../core/file-processing.ts";
 
 export default defineCommand({
   meta: {
@@ -25,8 +25,18 @@ export default defineCommand({
     },
     describe: {
       type: "boolean",
-      description: "Generate an AI description for the file (images only)",
+      description: "Generate an AI description for images",
       default: false,
+    },
+    transcribe: {
+      type: "boolean",
+      description: "Transcribe audio/video using Whisper API",
+      default: false,
+    },
+    embed: {
+      type: "boolean",
+      description: "Embed content after extraction (use --no-embed to skip)",
+      default: true,
     },
     json: { type: "boolean", description: "Output as JSON", default: false },
     db: { type: "string", description: "Path to brain.db" },
@@ -57,7 +67,7 @@ export default defineCommand({
     }
 
     if (args.describe && !isImageMime(mime)) {
-      console.error(`✗ Description is only supported for image/* files in v0.5 (got ${mime})`);
+      console.error(`✗ --describe is only supported for image/* files (got ${mime})`);
       process.exit(1);
     }
 
@@ -87,6 +97,7 @@ export default defineCommand({
         mime_type: mime,
         size_bytes: stat.size,
         description: null,
+        processed_at: null,
       });
     } catch (err) {
       if (String(err).includes("UNIQUE constraint failed: files.slug")) {
@@ -98,8 +109,8 @@ export default defineCommand({
     }
 
     const finalSlug = attachResult.slug;
-    let described = false;
-    let descriptionWarning: string | null = null;
+    let processed = false;
+    let processingWarning: string | null = null;
 
     if (attachResult.isDuplicate) {
       // Remove the redundant copy we just made; the existing file on disk is canonical.
@@ -107,27 +118,34 @@ export default defineCommand({
       console.log(`· File already exists as ${finalSlug}, linked to page`);
     }
 
-    if (args.describe && isImageMime(mime)) {
-      process.stdout.write(`Describing ${finalSlug}...\n`);
-      const result = await describeAndEmbedFile(
-        engine,
-        finalSlug,
-        filesDir,
-        cfg.vision!,
-        cfg.embed.model,
-      );
-      described = result.described;
-      if (result.warning) {
-        descriptionWarning = result.warning;
-        console.warn(`⚠ Vision API failed: ${result.warning}. Attached without description.`);
+    // Determine whether to auto-extract content
+    const isPdf = mime === "application/pdf";
+    const isDocx = mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    const isAudioVideo = mime.startsWith("audio/") || mime.startsWith("video/");
+    const shouldExtract = args.describe || isPdf || isDocx || (isAudioVideo && args.transcribe);
+
+    if (shouldExtract) {
+      const fileLabel = isPdf ? "Extracting PDF" : isDocx ? "Extracting DOCX" : isAudioVideo ? "Transcribing" : "Describing";
+      process.stdout.write(`${fileLabel} ${finalSlug}...\n`);
+      try {
+        await processFileContent(engine, finalSlug, filesDir, {
+          visionCfg: cfg.vision,
+          transcriptionBaseUrl: (cfg.transcription ?? cfg.vision)?.base_url,
+          transcriptionApiKey: (cfg.transcription ?? cfg.vision)?.api_key,
+          skipEmbed: !args.embed,
+        });
+        processed = true;
+      } catch (err) {
+        processingWarning = String(err);
+        console.warn(`⚠ Content extraction failed: ${processingWarning}`);
         console.warn(`  Run: gbrain describe ${finalSlug}`);
       }
     }
 
+    const needsExtract = !processed && (isImageMime(mime) || isPdf || isDocx);
+
     if (args.json) {
-      const nextAction = isImageMime(mime) && !described
-        ? `gbrain describe ${finalSlug}`
-        : null;
+      const nextAction = needsExtract ? `gbrain describe ${finalSlug}` : null;
       // For duplicates, the canonical file_path is the one already in the DB.
       const actualFilePath = attachResult.isDuplicate
         ? (engine.getFile(finalSlug)?.file_path ?? relPath)
@@ -137,14 +155,15 @@ export default defineCommand({
         page_slug: pageSlug,
         file_path: actualFilePath,
         mime_type: mime,
-        described,
-        description_warning: descriptionWarning,
+        processed,
+        processing_warning: processingWarning,
         next_action: nextAction,
       }, null, 2));
     } else {
       console.log(`✓ Attached ${finalSlug}${ext} to ${pageSlug}`);
-      if (isImageMime(mime) && !described) {
-        console.log(`  Next: gbrain describe ${finalSlug}`);
+      if (needsExtract) {
+        const hint = isPdf || isDocx ? "extract text with" : "describe with";
+        console.log(`  Next: gbrain describe ${finalSlug}  (${hint} gbrain describe)`);
       }
     }
   },

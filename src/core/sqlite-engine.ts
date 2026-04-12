@@ -23,6 +23,7 @@ export interface FileRecord {
   mime_type: string;
   size_bytes: number;
   description: string | null;
+  processed_at: string | null;
   created_at: string;
 }
 
@@ -258,6 +259,56 @@ export class SqliteEngine implements BrainEngine {
       }
     } catch { /* FTS files error */ }
 
+    // File chunk FTS (v0.6: PDF pages, DOCX paragraphs, audio transcripts)
+    try {
+      type FtsChunkRow = {
+        chunk_id: number;
+        file_slug: string;
+        title: string;
+        chunk_text: string;
+        chunk_source: string;
+        rank: number;
+        parent_page_slug: string | null;
+        provenance_summary: string | null;
+      };
+      const chunkRows = this.db.query<FtsChunkRow, [string, number]>(
+        `SELECT
+           fc.id AS chunk_id,
+           fc.file_slug,
+           COALESCE(f.original_name, fc.file_slug) AS title,
+           fc.chunk_text,
+           fc.chunk_source,
+           fts.rank,
+           MIN(pf.page_slug) AS parent_page_slug,
+           MIN(fr.source_type || ':' || fr.source_ref) AS provenance_summary
+         FROM (SELECT rowid, rank FROM fts_file_chunks WHERE fts_file_chunks MATCH ?) fts
+         JOIN file_chunks fc ON fc.id = fts.rowid
+         JOIN files f ON f.slug = fc.file_slug
+         LEFT JOIN page_files pf ON pf.file_slug = f.slug
+         LEFT JOIN file_references fr ON fr.file_slug = f.slug
+         GROUP BY fc.id
+         ORDER BY fts.rank LIMIT ?`,
+      ).all(query, limit);
+
+      for (const cr of chunkRows) {
+        results.push({
+          result_kind: 'file',
+          slug: `file:${cr.file_slug}`,
+          page_id: -1,
+          file_slug: cr.file_slug,
+          parent_page_slug: cr.parent_page_slug ?? undefined,
+          title: cr.title,
+          type: 'file',
+          chunk_text: cr.chunk_text,
+          chunk_source: cr.chunk_source as 'file_description',
+          provenance_summary: cr.provenance_summary ?? undefined,
+          score: Math.abs(cr.rank),
+          stale: false,
+          snippet: cr.chunk_text.slice(0, 200),
+        });
+      }
+    } catch { /* fts_file_chunks may not exist on very old DBs */ }
+
     return results.slice(0, limit);
   }
 
@@ -269,11 +320,34 @@ export class SqliteEngine implements BrainEngine {
       "SELECT id, page_id, chunk_text, chunk_source, embedding, model FROM content_chunks WHERE embedding IS NOT NULL"
     ).all();
 
-    // File chunks
-    type FileChunkRow = { id: number; file_slug: string; chunk_text: string; embedding: Buffer; model: string };
+    // File chunks — pre-fetch all file metadata to avoid N+1 queries in the loop
+    type FileChunkRow = { id: number; file_slug: string; chunk_text: string; chunk_source: string; embedding: Buffer; model: string };
     const fileChunks = this.db.query<FileChunkRow, []>(
-      "SELECT id, file_slug, chunk_text, embedding, model FROM file_chunks WHERE embedding IS NOT NULL"
+      "SELECT id, file_slug, chunk_text, COALESCE(chunk_source, 'description') AS chunk_source, embedding, model FROM file_chunks WHERE embedding IS NOT NULL"
     ).all();
+
+    // Pre-fetch all file metadata in one query, keyed by file_slug
+    const uniqueFileSlugs = [...new Set(fileChunks.map(fc => fc.file_slug))];
+    const fileMeta = new Map<string, { original_name: string | null; page_slug: string | null; source_type: string | null; source_ref: string | null }>();
+    if (uniqueFileSlugs.length > 0) {
+      type FileMetaRow = { file_slug: string; original_name: string | null; page_slug: string | null; source_type: string | null; source_ref: string | null };
+      const placeholders = uniqueFileSlugs.map(() => "?").join(",");
+      const rows = this.db.query<FileMetaRow, string[]>(
+        `SELECT f.slug AS file_slug,
+                f.original_name,
+                MIN(pf.page_slug) AS page_slug,
+                MIN(fr.source_type) AS source_type,
+                MIN(fr.source_ref)  AS source_ref
+         FROM files f
+         LEFT JOIN page_files pf ON pf.file_slug = f.slug
+         LEFT JOIN file_references fr ON fr.file_slug = f.slug
+         WHERE f.slug IN (${placeholders})
+         GROUP BY f.slug`,
+      ).all(...uniqueFileSlugs);
+      for (const row of rows) {
+        fileMeta.set(row.file_slug, row);
+      }
+    }
 
     if (chunks.length === 0 && fileChunks.length === 0) return [];
 
@@ -308,21 +382,10 @@ export class SqliteEngine implements BrainEngine {
     for (const fc of fileChunks) {
       const vec = new Float32Array(fc.embedding.buffer, fc.embedding.byteOffset, fc.embedding.byteLength / 4);
       const score = cosineSimilarity(embedding, vec);
-      const pf = this.db.query<{ page_slug: string }, [string]>(
-        "SELECT page_slug FROM page_files WHERE file_slug = ? LIMIT 1"
-      ).get(fc.file_slug);
-      const fileRow = this.db.query<{ original_name: string | null; source_type: string | null; source_ref: string | null }, [string]>(
-        `SELECT f.original_name,
-                fr.source_type,
-                fr.source_ref
-         FROM files f
-         LEFT JOIN file_references fr ON fr.file_slug = f.slug
-         WHERE f.slug = ?
-         LIMIT 1`,
-      ).get(fc.file_slug);
-      const title = fileRow?.original_name ?? fc.file_slug;
-      const provenance_summary = fileRow?.source_type && fileRow?.source_ref
-        ? `${fileRow.source_type}:${fileRow.source_ref}`
+      const meta = fileMeta.get(fc.file_slug);
+      const title = meta?.original_name ?? fc.file_slug;
+      const provenance_summary = meta?.source_type && meta?.source_ref
+        ? `${meta.source_type}:${meta.source_ref}`
         : undefined;
       allScored.push({
         key: `file:${fc.file_slug}`,
@@ -332,11 +395,11 @@ export class SqliteEngine implements BrainEngine {
           slug: `file:${fc.file_slug}`,
           page_id: -1,
           file_slug: fc.file_slug,
-          parent_page_slug: pf?.page_slug ?? undefined,
+          parent_page_slug: meta?.page_slug ?? undefined,
           title,
           type: 'file',
           chunk_text: fc.chunk_text,
-          chunk_source: 'file_description' as const,
+          chunk_source: (fc.chunk_source ?? 'file_description') as 'file_description',
           score,
           stale: false,
           provenance_summary,
@@ -1030,9 +1093,51 @@ export class SqliteEngine implements BrainEngine {
     );
   }
 
+  /**
+   * Bulk-replace all chunks for a file in a single transaction.
+   * Deletes existing chunks first to avoid orphaned rows on re-processing.
+   * chunks[i] and embeddings[i] must correspond to the same item.
+   */
+  upsertFileChunks(
+    fileSlug: string,
+    chunks: Array<{ text: string; source: string }>,
+    embeddings: Array<Float32Array | null>,
+    model: string,
+  ): void {
+    if (chunks.length !== embeddings.length) {
+      throw new Error(`upsertFileChunks: chunks.length (${chunks.length}) !== embeddings.length (${embeddings.length})`);
+    }
+    this.db.transaction(() => {
+      this.db.run("DELETE FROM file_chunks WHERE file_slug = ?", [fileSlug]);
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i]!;
+        const emb = embeddings[i];
+        const embBlob = emb ? Buffer.from(emb.buffer) : null;
+        this.db.run(
+          `INSERT INTO file_chunks
+             (file_slug, chunk_index, chunk_text, chunk_source, embedding, model, embedded_at)
+           VALUES (?,?,?,?,?,?,CASE WHEN ? IS NOT NULL THEN strftime('%Y-%m-%dT%H:%M:%SZ','now') ELSE NULL END)`,
+          [fileSlug, i, chunk.text, chunk.source, embBlob, model, embBlob],
+        );
+      }
+    })();
+  }
+
+  setProcessedAt(fileSlug: string): void {
+    this.db.run(
+      `UPDATE files SET processed_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE slug = ?`,
+      [fileSlug],
+    );
+  }
+
   listUndescribedFiles(): FileRecord[] {
+    // Backward-compat alias for listUnprocessedFiles().
+    return this.listUnprocessedFiles();
+  }
+
+  listUnprocessedFiles(): FileRecord[] {
     return this.db.query<FileRecord, []>(
-      "SELECT * FROM files WHERE description IS NULL ORDER BY created_at",
+      "SELECT * FROM files WHERE processed_at IS NULL ORDER BY created_at",
     ).all();
   }
 
