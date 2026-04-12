@@ -430,6 +430,12 @@ export function migrateDb(db: Database): void {
     ON content_chunks(page_id, chunk_index);
   `);
 
+  const contentChunksInfo = db.query<{ name: string }, []>("PRAGMA table_info(content_chunks)").all();
+  const contentChunksColumns = new Set(contentChunksInfo.map(r => r.name));
+  if (contentChunksInfo.length > 0 && !contentChunksColumns.has("chunk_source")) {
+    db.exec("ALTER TABLE content_chunks ADD COLUMN chunk_source TEXT NOT NULL DEFAULT 'compiled_truth'");
+  }
+
   // Add config/brain_meta if missing (older DBs)
   db.exec(`
     CREATE TABLE IF NOT EXISTS config (
@@ -608,6 +614,12 @@ export function migrateDb(db: Database): void {
   // INSERT('rebuild') is idempotent and fast; harmless on fresh DBs.
   db.exec(`INSERT INTO fts_files(fts_files) VALUES('rebuild')`);
   db.exec(`INSERT INTO fts_file_chunks(fts_file_chunks) VALUES('rebuild')`);
+
+  const fileChunksInfo = db.query<{ name: string }, []>("PRAGMA table_info(file_chunks)").all();
+  const fileChunksColumns = new Set(fileChunksInfo.map(r => r.name));
+  if (fileChunksInfo.length > 0 && !fileChunksColumns.has("chunk_source")) {
+    db.exec("ALTER TABLE file_chunks ADD COLUMN chunk_source TEXT NOT NULL DEFAULT 'description'");
+  }
 }
 
 export function openDb(dbPath: string): Database {

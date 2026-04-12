@@ -82,6 +82,75 @@ describe("schema — files tables", () => {
     expect(() => migrateDb(db)).not.toThrow();
     expect(() => migrateDb(db)).not.toThrow();
   });
+
+  test("migrateDb() backfills chunk_source on older content/file chunk tables", () => {
+    const db = new Database(":memory:");
+    db.exec(`
+      CREATE TABLE pages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug TEXT NOT NULL UNIQUE,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        compiled_truth TEXT NOT NULL DEFAULT '',
+        timeline TEXT NOT NULL DEFAULT '',
+        frontmatter TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT ''
+      );
+      CREATE TABLE links (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        from_page_id INTEGER NOT NULL,
+        to_page_id INTEGER NOT NULL,
+        context TEXT NOT NULL DEFAULT ''
+      );
+      CREATE TABLE content_chunks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        page_id INTEGER NOT NULL,
+        chunk_index INTEGER NOT NULL,
+        chunk_text TEXT NOT NULL,
+        embedding BLOB,
+        model TEXT NOT NULL DEFAULT 'text-embedding-3-small',
+        token_count INTEGER,
+        embedded_at TEXT,
+        created_at TEXT NOT NULL DEFAULT ''
+      );
+      CREATE TABLE files (
+        slug TEXT PRIMARY KEY,
+        sha256 TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        original_name TEXT,
+        mime_type TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL,
+        description TEXT,
+        processed_at TEXT,
+        created_at TEXT NOT NULL DEFAULT ''
+      );
+      CREATE TABLE file_chunks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        file_slug TEXT NOT NULL,
+        chunk_index INTEGER NOT NULL DEFAULT 0,
+        chunk_text TEXT NOT NULL,
+        embedding BLOB,
+        model TEXT NOT NULL DEFAULT 'text-embedding-3-small',
+        embedded_at TEXT,
+        created_at TEXT NOT NULL DEFAULT ''
+      );
+    `);
+
+    expect(() => migrateDb(db)).not.toThrow();
+
+    const contentChunkCols = db.query<{ name: string }, []>("PRAGMA table_info(content_chunks)").all().map(r => r.name);
+    const fileChunkCols = db.query<{ name: string }, []>("PRAGMA table_info(file_chunks)").all().map(r => r.name);
+    expect(contentChunkCols).toContain("chunk_source");
+    expect(fileChunkCols).toContain("chunk_source");
+
+    expect(() =>
+      db.query("SELECT id, page_id, chunk_text, chunk_source, embedding, model FROM content_chunks WHERE embedding IS NOT NULL").all(),
+    ).not.toThrow();
+    expect(() =>
+      db.query("SELECT id, file_slug, chunk_text, COALESCE(chunk_source, 'description') AS chunk_source, embedding, model FROM file_chunks WHERE embedding IS NOT NULL").all(),
+    ).not.toThrow();
+  });
 });
 
 // ── attachFileRecord ──────────────────────────────────────────────────────────
