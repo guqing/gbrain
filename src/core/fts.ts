@@ -172,7 +172,8 @@ export function ftsSearch(
           { id: number; slug: string; title: string; type: string; rank: number },
           [string]
         >(
-          `SELECT p.id, p.slug, p.title, p.type, page_fts.rank AS rank
+          `SELECT p.id, p.slug, p.title, p.type,
+                  bm25(page_fts, 10.0, 1.0, 0.5, 0.5) AS rank
            FROM page_fts
            JOIN pages p ON page_fts.rowid = p.id
            WHERE page_fts MATCH ?
@@ -184,8 +185,9 @@ export function ftsSearch(
   }
 
   // snippet() column 1 = compiled_truth (human-readable, not bigram tokens)
+  // Use ** markers so callers can apply bold highlighting
   const snippetStmt = db.query<{ snippet: string }, [string, number]>(
-    `SELECT snippet(page_fts, 1, '', '', '...', 24) AS snippet
+    `SELECT snippet(page_fts, 1, '**', '**', '...', 30) AS snippet
      FROM page_fts
      WHERE page_fts MATCH ?
      AND rowid = ?`

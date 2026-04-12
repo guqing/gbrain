@@ -413,7 +413,11 @@ export class SqliteEngine implements BrainEngine {
     }
 
     allScored.sort((a, b) => b.score - a.score);
-    const top = allScored.slice(0, limit * 3);
+    // Filter ghost results: cosine similarity below threshold yields semantically
+    // unrelated documents that contaminate RRF scores. 0.25 is a conservative
+    // floor — personal KB embeddings for truly relevant content score ≥ 0.3.
+    const MIN_COSINE_SIMILARITY = 0.25;
+    const top = allScored.filter(item => item.score >= MIN_COSINE_SIMILARITY).slice(0, limit * 3);
 
     // Resolve page slugs for page results
     const pageIds = [...new Set(top.filter(t => t.result.page_id > 0).map(t => t.result.page_id))];
@@ -504,6 +508,24 @@ export class SqliteEngine implements BrainEngine {
         (entry.result.chunk_source === 'file_description' || entry.result.chunk_source === 'description')
       ) {
         entry.rrf *= 0.35;
+      }
+    }
+
+    // Title match bonus: if query terms appear in the result title, boost its RRF score.
+    // Calibrated to +0.02 for a full match — about 1.2× the top RRF slot (1/(60+1)=0.0164).
+    // Large enough to bump rank-2 title-match above rank-1 body-match, but small enough
+    // that it does not override the combined BM25F+vector signal for decisive mismatches.
+    const titleBonusTerms = kwQuery
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(t => t.length >= 2);
+    if (titleBonusTerms.length > 0) {
+      for (const entry of scores.values()) {
+        const titleLower = entry.result.title.toLowerCase();
+        const matchCount = titleBonusTerms.filter(t => titleLower.includes(t)).length;
+        if (matchCount > 0) {
+          entry.rrf += 0.02 * (matchCount / titleBonusTerms.length);
+        }
       }
     }
 
