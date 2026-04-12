@@ -10,7 +10,7 @@ import type {
   BrainStats, BrainHealth,
   IngestLogEntry, IngestLogInput,
 } from "../types.ts";
-import { ftsSearch } from "./fts.ts";
+import { ftsSearch, buildSearchTokens } from "./fts.ts";
 import { migrateDb } from "./db.ts";
 
 // ── File + Import types ────────────────────────────────────────────────────
@@ -127,17 +127,22 @@ export class SqliteEngine implements BrainEngine {
     const fmJson = JSON.stringify(input.frontmatter ?? {});
     const timeline = input.timeline ?? '';
 
+    // Build CJK-bigram search tokens for the full page text so FTS5 can match
+    // 2-character Chinese compounds like "提交"/"邮箱" that unicode61 can't split.
+    const rawText = [input.title, input.compiled_truth, timeline].join(" ");
+    const searchTokens = buildSearchTokens(rawText);
+
     if (existing) {
       this.db.run(
         `UPDATE pages SET type=?, title=?, compiled_truth=?, timeline=?, frontmatter=?,
-         updated_at=strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE slug=?`,
-        [input.type, input.title, input.compiled_truth, timeline, fmJson, slug]
+         search_tokens=?, updated_at=strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE slug=?`,
+        [input.type, input.title, input.compiled_truth, timeline, fmJson, searchTokens, slug]
       );
     } else {
       this.db.run(
-        `INSERT INTO pages (slug, type, title, compiled_truth, timeline, frontmatter)
-         VALUES (?,?,?,?,?,?)`,
-        [slug, input.type, input.title, input.compiled_truth, timeline, fmJson]
+        `INSERT INTO pages (slug, type, title, compiled_truth, timeline, frontmatter, search_tokens)
+         VALUES (?,?,?,?,?,?,?)`,
+        [slug, input.type, input.title, input.compiled_truth, timeline, fmJson, searchTokens]
       );
     }
 

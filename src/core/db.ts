@@ -2,6 +2,7 @@ import { Database } from "bun:sqlite";
 import { existsSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
+import { buildSearchTokens } from "./fts.ts";
 
 export const SCHEMA = `
 PRAGMA journal_mode = WAL;
@@ -17,6 +18,7 @@ CREATE TABLE IF NOT EXISTS pages (
   frontmatter    TEXT    NOT NULL DEFAULT '{}',
   content_hash   TEXT,
   compiled_at    INTEGER,
+  search_tokens  TEXT    NOT NULL DEFAULT '',
   created_at     TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
   updated_at     TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
@@ -24,30 +26,34 @@ CREATE TABLE IF NOT EXISTS pages (
 CREATE INDEX IF NOT EXISTS idx_pages_type ON pages(type);
 CREATE INDEX IF NOT EXISTS idx_pages_slug ON pages(slug);
 
+-- FTS5 with search_tokens (col 3) for CJK bigram matching.
+-- Columns: 0=title, 1=compiled_truth, 2=timeline, 3=search_tokens
+-- snippet() should always target col 1 (compiled_truth) for human-readable output.
 CREATE VIRTUAL TABLE IF NOT EXISTS page_fts USING fts5(
   title,
   compiled_truth,
   timeline,
+  search_tokens,
   content='pages',
   content_rowid='id',
   tokenize='porter unicode61'
 );
 
 CREATE TRIGGER IF NOT EXISTS pages_ai AFTER INSERT ON pages BEGIN
-  INSERT INTO page_fts(rowid, title, compiled_truth, timeline)
-  VALUES (new.id, new.title, new.compiled_truth, new.timeline);
+  INSERT INTO page_fts(rowid, title, compiled_truth, timeline, search_tokens)
+  VALUES (new.id, new.title, new.compiled_truth, new.timeline, new.search_tokens);
 END;
 
 CREATE TRIGGER IF NOT EXISTS pages_ad AFTER DELETE ON pages BEGIN
-  INSERT INTO page_fts(page_fts, rowid, title, compiled_truth, timeline)
-  VALUES ('delete', old.id, old.title, old.compiled_truth, old.timeline);
+  INSERT INTO page_fts(page_fts, rowid, title, compiled_truth, timeline, search_tokens)
+  VALUES ('delete', old.id, old.title, old.compiled_truth, old.timeline, old.search_tokens);
 END;
 
 CREATE TRIGGER IF NOT EXISTS pages_au AFTER UPDATE ON pages BEGIN
-  INSERT INTO page_fts(page_fts, rowid, title, compiled_truth, timeline)
-  VALUES ('delete', old.id, old.title, old.compiled_truth, old.timeline);
-  INSERT INTO page_fts(rowid, title, compiled_truth, timeline)
-  VALUES (new.id, new.title, new.compiled_truth, new.timeline);
+  INSERT INTO page_fts(page_fts, rowid, title, compiled_truth, timeline, search_tokens)
+  VALUES ('delete', old.id, old.title, old.compiled_truth, old.timeline, old.search_tokens);
+  INSERT INTO page_fts(rowid, title, compiled_truth, timeline, search_tokens)
+  VALUES (new.id, new.title, new.compiled_truth, new.timeline, new.search_tokens);
 END;
 
 CREATE TABLE IF NOT EXISTS page_embeddings (
@@ -348,6 +354,65 @@ export function migrateDb(db: Database): void {
   }
   if (!pagesColumns.has('compiled_at')) {
     db.exec("ALTER TABLE pages ADD COLUMN compiled_at INTEGER");
+  }
+
+  // Migration: add search_tokens column + rebuild page_fts with the new column.
+  // search_tokens stores pre-expanded CJK bigrams so that 2-character compounds
+  // like "提交"/"邮箱" can be found by FTS5 (unicode61 alone cannot split CJK).
+  if (!pagesColumns.has('search_tokens')) {
+    db.exec("ALTER TABLE pages ADD COLUMN search_tokens TEXT NOT NULL DEFAULT ''");
+
+    // Rebuild page_fts to include the new search_tokens column.
+    // We must drop the old virtual table and its triggers, then recreate them.
+    db.exec(`
+      DROP TRIGGER IF EXISTS pages_au;
+      DROP TRIGGER IF EXISTS pages_ad;
+      DROP TRIGGER IF EXISTS pages_ai;
+      DROP TABLE IF EXISTS page_fts;
+
+      CREATE VIRTUAL TABLE page_fts USING fts5(
+        title,
+        compiled_truth,
+        timeline,
+        search_tokens,
+        content='pages',
+        content_rowid='id',
+        tokenize='porter unicode61'
+      );
+
+      CREATE TRIGGER pages_ai AFTER INSERT ON pages BEGIN
+        INSERT INTO page_fts(rowid, title, compiled_truth, timeline, search_tokens)
+        VALUES (new.id, new.title, new.compiled_truth, new.timeline, new.search_tokens);
+      END;
+
+      CREATE TRIGGER pages_ad AFTER DELETE ON pages BEGIN
+        INSERT INTO page_fts(page_fts, rowid, title, compiled_truth, timeline, search_tokens)
+        VALUES ('delete', old.id, old.title, old.compiled_truth, old.timeline, old.search_tokens);
+      END;
+
+      CREATE TRIGGER pages_au AFTER UPDATE ON pages BEGIN
+        INSERT INTO page_fts(page_fts, rowid, title, compiled_truth, timeline, search_tokens)
+        VALUES ('delete', old.id, old.title, old.compiled_truth, old.timeline, old.search_tokens);
+        INSERT INTO page_fts(rowid, title, compiled_truth, timeline, search_tokens)
+        VALUES (new.id, new.title, new.compiled_truth, new.timeline, new.search_tokens);
+      END;
+    `);
+
+    // Backfill search_tokens for every existing row using CJK bigram expansion.
+    type PageRow = { id: number; title: string; compiled_truth: string; timeline: string };
+    const pages = db.query<PageRow, []>(
+      "SELECT id, title, compiled_truth, timeline FROM pages"
+    ).all();
+    const updateStmt = db.prepare(
+      "UPDATE pages SET search_tokens = ? WHERE id = ?"
+    );
+    for (const p of pages) {
+      const raw = [p.title, p.compiled_truth, p.timeline].join(" ");
+      updateStmt.run(buildSearchTokens(raw), p.id);
+    }
+
+    // Rebuild FTS index from the now-populated search_tokens column.
+    db.exec(`INSERT INTO page_fts(page_fts) VALUES('rebuild')`);
   }
 
   // Add link_type to links if missing
