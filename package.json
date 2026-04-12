@@ -1,18 +1,18 @@
 {
-  "name": "@guqings/gbrain",
+  "name": "@guqings/exo",
   "version": "0.6.0",
   "description": "Personal knowledge brain — CLI + MCP server. SQLite + FTS5 + vector search.",
   "type": "module",
   "bin": {
-    "gbrain": "./bin/gbrain.ts"
+    "exo": "./bin/exo.ts"
   },
   "scripts": {
     "dev": "bun run src/cli.ts",
-    "build": "bun build --compile --minify src/cli.ts --outfile bin/gbrain",
+    "build": "bun build --compile --minify src/cli.ts --outfile bin/exo",
     "test": "bun test"
   },
   "files": [
-    "bin/gbrain.ts",
+    "bin/exo.ts",
     "src/",
     "!src/tests/"
   ],

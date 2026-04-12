@@ -33,9 +33,9 @@ function detectInstallMethod(): 'bun' | 'npm' | 'binary' {
 
 function upgradeCommand(method: ReturnType<typeof detectInstallMethod>): string {
   switch (method) {
-    case 'bun':  return 'bun install -g gbrain@latest';
-    case 'npm':  return 'npm install -g gbrain@latest';
-    default:     return 'npm install -g gbrain@latest';
+    case 'bun':  return 'bun install -g @guqings/exo@latest';
+    case 'npm':  return 'npm install -g @guqings/exo@latest';
+    default:     return 'npm install -g @guqings/exo@latest';
   }
 }
 
@@ -52,9 +52,9 @@ export async function runCheckUpdate(silent = false): Promise<CheckUpdateResult 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10_000);
 
-    const res = await fetch('https://registry.npmjs.org/gbrain/latest', {
+    const res = await fetch('https://registry.npmjs.org/@guqings%2fexo/latest', {
       signal: controller.signal,
-      headers: { 'User-Agent': `gbrain/${VERSION}` },
+      headers: { 'User-Agent`: `exo/${VERSION}` },
     }).finally(() => clearTimeout(timeout));
 
     if (!res.ok) return null;
@@ -86,7 +86,7 @@ export async function runCheckUpdate(silent = false): Promise<CheckUpdateResult 
 }
 
 export default defineCommand({
-  meta: { name: "check-update", description: "Check for a newer version of gbrain on npm" },
+  meta: { name: "check-update", description: "Check for a newer version of exo on npm" },
   args: {
     json: { type: "boolean", description: "Output JSON", default: false },
   },
@@ -108,20 +108,20 @@ export default defineCommand({
     }
 
     if (!result.update_available) {
-      console.log(`✓ gbrain is up to date (v${result.current})`);
+      console.log(`✓ exo is up to date (v${result.current})`);
       return;
     }
 
     if (result.is_minor_or_major) {
       console.log(`\n  ┌─────────────────────────────────────────────┐`);
-      console.log(`  │  gbrain update available: v${result.current} → v${result.latest}  │`);
+      console.log(`  │  exo update available: v${result.current} → v${result.latest}  │`);
       console.log(`  │                                             │`);
       console.log(`  │  Upgrade:                                   │`);
       console.log(`  │    ${result.upgrade_command.padEnd(41)} │`);
       console.log(`  └─────────────────────────────────────────────┘\n`);
     } else {
       // Patch bump — just print once, no box
-      console.log(`  gbrain patch available: v${result.current} → v${result.latest}  (${result.upgrade_command})`);
+      console.log(`  exo patch available: v${result.current} → v${result.latest}  (${result.upgrade_command})`);
     }
   },
 });

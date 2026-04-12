@@ -32,7 +32,7 @@ ${body}
 
 /** Create a temp git repo, add notes, return { dir } */
 function makeTempGitRepo(): { dir: string; cleanup: () => void } {
-  const dir = mkdtempSync(join(tmpdir(), "gbrain-sync-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "exo-sync-test-"));
   const g = (...args: string[]) =>
     execFileSync("git", ["-C", dir, ...args], { stdio: "ignore" });
 
@@ -199,7 +199,7 @@ describe("gitIncrementalSync — ancestry validation", () => {
 
 describe("gitIncrementalSync — error cases", () => {
   test("throws descriptive error when not a git repo", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "gbrain-nogit-"));
+    const dir = mkdtempSync(join(tmpdir(), "exo-nogit-"));
     const engine = freshEngine();
     try {
       await expect(

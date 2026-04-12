@@ -26,7 +26,7 @@ export default defineCommand({
     try {
       results = engine.searchKeyword(args.query, { type: args.type, limit });
     } catch {
-      console.error(`✗ Search error — try quoting your query: gbrain search "${args.query}"`);
+      console.error(`✗ Search error — try quoting your query: exo search "${args.query}"`);
       process.exit(1);
     }
 

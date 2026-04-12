@@ -1,4 +1,4 @@
-import type { GbrainConfig } from "../../core/config.ts";
+import type { ExoConfig } from "../../core/config.ts";
 import type { CompileItem } from "../../types.ts";
 
 export interface CompileConfig {
@@ -42,13 +42,13 @@ export type FetchFn = typeof fetch;
 export async function callLlm(
   inboxContent: string,
   existingPages: Array<{ slug: string; title: string }>,
-  config: GbrainConfig["compile"],
+  config: ExoConfig["compile"],
   fetchFn: FetchFn = fetch,
 ): Promise<CompileItem> {
   const apiKey = config.api_key;
   if (!apiKey) {
     throw new Error(
-      "compile.api_key is not set. Run: gbrain config set compile.api_key <key>",
+      "compile.api_key is not set. Run: exo config set compile.api_key <key>",
     );
   }
 

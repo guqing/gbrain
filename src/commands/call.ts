@@ -37,11 +37,11 @@ export default defineCommand({
         input = JSON.parse(rawParams);
       } catch {
         console.error(`✗ Invalid JSON params: ${rawParams}`);
-        console.error("  Example: gbrain call brain_get '{\"slug\":\"knowledge/sqlite\"}'");
+        console.error("  Example: exo call brain_get '{\"slug\":\"knowledge/sqlite\"}'");
         process.exit(1);
       }
     } else if (!process.stdin.isTTY) {
-      // Read from stdin pipe: echo '{"slug":"test"}' | gbrain call brain_get
+      // Read from stdin pipe: echo '{"slug":"test"}' | exo call brain_get
       const chunks: Buffer[] = [];
       for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
       const raw = Buffer.concat(chunks).toString().trim();

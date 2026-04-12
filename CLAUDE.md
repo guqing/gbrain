@@ -1,6 +1,6 @@
-# gbrain — Personal Knowledge Brain
+# exo — Personal Knowledge Brain
 
-This project builds `gbrain`: a CLI tool + MCP server for personal knowledge management.
+This project builds `exo`: a CLI tool + MCP server for personal knowledge management.
 Stack: Bun + TypeScript + SQLite (FTS5 + sqlite-vec). See DESIGN.md for full spec.
 
 ## Skill routing

@@ -1,8 +1,8 @@
-# gbrain
+# exo
 
 Your personal knowledge brain. CLI + MCP server.
 
-AI coding sessions close and the experience disappears. ChatGPT threads pile up with nowhere to go. Documentation accumulates but never gets flagged as stale. gbrain solves all three.
+AI coding sessions close and the experience disappears. ChatGPT threads pile up with nowhere to go. Documentation accumulates but never gets flagged as stale. exo solves all three.
 
 Store knowledge once. Search it fast. Let LLMs compile raw sessions and conversations into structured pages. Wire it into Claude Code or Cursor as an MCP server and your AI tools can read and write your brain directly.
 
@@ -11,7 +11,7 @@ Store knowledge once. Search it fast. Let LLMs compile raw sessions and conversa
 ## Install
 
 ```bash
-bun install -g gbrain
+bun install -g exo
 ```
 
 Requires [Bun](https://bun.sh) 1.x.
@@ -22,7 +22,7 @@ Requires [Bun](https://bun.sh) 1.x.
 
 ```bash
 # Create a brain in your current directory
-gbrain init
+exo init
 
 # Add a concept page (reads from stdin)
 echo '---
@@ -35,19 +35,19 @@ tags: [sqlite, search]
 # FTS5 Prefix Queries
 
 FTS5 supports prefix queries: embed* matches "embed", "embeddings", "embedded".
-' | gbrain put concepts/fts5-prefix-queries
+' | exo put concepts/fts5-prefix-queries
 
 # Search
-gbrain search "fts5 prefix"
+exo search "fts5 prefix"
 
 # Read a page
-gbrain get concepts/fts5-prefix-queries
+exo get concepts/fts5-prefix-queries
 
 # Cross-reference two pages
-gbrain link concepts/fts5-prefix-queries concepts/sqlite
+exo link concepts/fts5-prefix-queries concepts/sqlite
 
 # Wire up to Claude Code / Cursor (one-time)
-gbrain setup-mcp
+exo setup-mcp
 ```
 
 ---
@@ -56,22 +56,22 @@ gbrain setup-mcp
 
 | Command | Description |
 |---------|-------------|
-| `gbrain init` | Create `brain.db` in the current directory |
-| `gbrain get <slug>` | Read a page as markdown |
-| `gbrain put <slug>` | Write/update a page from stdin or `--file` |
-| `gbrain search <query>` | FTS5 keyword search (`--type`, `--limit`) |
-| `gbrain list` | List pages (`--type`, `--tag`, `--limit`) |
-| `gbrain link <from> <to>` | Create a cross-reference |
-| `gbrain unlink <from> <to>` | Remove a cross-reference |
-| `gbrain backlinks <slug>` | Show pages linking to a slug |
-| `gbrain tag <slug> <tag>` | Add a tag |
-| `gbrain untag <slug> <tag>` | Remove a tag |
-| `gbrain tags <slug>` | List tags for a page |
-| `gbrain stats` | Brain statistics (counts, DB size) |
-| `gbrain lint` | Check for stale, orphaned, and low-confidence pages |
-| `gbrain serve` | Start the MCP stdio server |
-| `gbrain setup-mcp` | Auto-configure MCP in Claude Code and Cursor |
-| `gbrain version` | Print version |
+| `exo init` | Create `brain.db` in the current directory |
+| `exo get <slug>` | Read a page as markdown |
+| `exo put <slug>` | Write/update a page from stdin or `--file` |
+| `exo search <query>` | FTS5 keyword search (`--type`, `--limit`) |
+| `exo list` | List pages (`--type`, `--tag`, `--limit`) |
+| `exo link <from> <to>` | Create a cross-reference |
+| `exo unlink <from> <to>` | Remove a cross-reference |
+| `exo backlinks <slug>` | Show pages linking to a slug |
+| `exo tag <slug> <tag>` | Add a tag |
+| `exo untag <slug> <tag>` | Remove a tag |
+| `exo tags <slug>` | List tags for a page |
+| `exo stats` | Brain statistics (counts, DB size) |
+| `exo lint` | Check for stale, orphaned, and low-confidence pages |
+| `exo serve` | Start the MCP stdio server |
+| `exo setup-mcp` | Auto-configure MCP in Claude Code and Cursor |
+| `exo version` | Print version |
 
 ---
 
@@ -97,7 +97,7 @@ sources: [https://bun.sh/docs/api/sqlite]
 
 ## Timeline
 
-- **2024-06-01**: First used in gbrain. Replaced better-sqlite3.
+- **2024-06-01**: First used in exo. Replaced better-sqlite3.
 ```
 
 ### Slug prefixes and page types
@@ -127,10 +127,10 @@ sources: [https://bun.sh/docs/api/sqlite]
 
 ```bash
 # Flag (per-command)
-gbrain search "query" --db ~/notes/brain.db
+exo search "query" --db ~/notes/brain.db
 
 # Env var (persists in shell)
-export GBRAIN_DB=~/notes/brain.db
+export EXO_DB=~/notes/brain.db
 ```
 
 Default: `./brain.db` in the current directory.
@@ -139,10 +139,10 @@ Default: `./brain.db` in the current directory.
 
 ## MCP server
 
-gbrain exposes a Model Context Protocol server so Claude Code and Cursor can read and write your brain directly.
+exo exposes a Model Context Protocol server so Claude Code and Cursor can read and write your brain directly.
 
 ```bash
-gbrain setup-mcp   # writes ~/.claude/mcp.json and ~/.cursor/mcp.json
+exo setup-mcp   # writes ~/.claude/mcp.json and ~/.cursor/mcp.json
 ```
 
 Available MCP tools: `brain_search`, `brain_get`, `brain_put`, `brain_list`, `brain_link`, `brain_stats`, `brain_lint_summary`.
@@ -152,8 +152,8 @@ To configure manually in `~/.claude/mcp.json`:
 ```json
 {
   "mcpServers": {
-    "gbrain": {
-      "command": "gbrain",
+    "exo": {
+      "command": "exo",
       "args": ["serve"]
     }
   }
@@ -164,15 +164,15 @@ To configure manually in `~/.claude/mcp.json`:
 
 ## Lint
 
-`gbrain lint` surfaces three classes of issues:
+`exo lint` surfaces three classes of issues:
 
 - **Stale** — `valid_until` is in the past
 - **Low confidence** — `confidence <= 3`
 - **Orphaned** — no links in or out, no tags
 
 ```bash
-gbrain lint           # all issues
-gbrain lint --json    # machine-readable JSON
+exo lint           # all issues
+exo lint --json    # machine-readable JSON
 ```
 
 ---
@@ -180,8 +180,8 @@ gbrain lint --json    # machine-readable JSON
 ## Development
 
 ```bash
-git clone https://github.com/yourname/gbrain
-cd gbrain
+git clone https://github.com/yourname/exo
+cd exo
 bun install
 bun run dev      # bun run src/cli.ts
 bun test         # run test suite
@@ -193,14 +193,14 @@ bun run build    # compile to single binary
 ## Roadmap
 
 **Phase 2 — AI compilation layer**
-- `gbrain harvest` — parse Claude Code JSONL sessions into learning pages
-- `gbrain digest` — parse ChatGPT export into concept pages
-- `gbrain embed` — generate vector embeddings (OpenAI text-embedding-3-small)
-- `gbrain query` — semantic search (FTS5 + cosine similarity)
+- `exo harvest` — parse Claude Code JSONL sessions into learning pages
+- `exo digest` — parse ChatGPT export into concept pages
+- `exo embed` — generate vector embeddings (OpenAI text-embedding-3-small)
+- `exo query` — semantic search (FTS5 + cosine similarity)
 
 **Phase 3 — portability**
-- `gbrain export` — export to a directory of markdown files
-- `gbrain import` — import from a markdown directory
+- `exo export` — export to a directory of markdown files
+- `exo import` — import from a markdown directory
 - Optional sqlite-vec for large brains
 
 ---

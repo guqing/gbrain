@@ -101,7 +101,7 @@ export default defineCommand({
 
     const undescribed = files.filter(f => !f.description && f.mime_type.startsWith("image/"));
     if (undescribed.length > 0) {
-      console.log(`\nNext: gbrain describe --all  (${undescribed.length} image(s) without description)`);
+      console.log(`\nNext: exo describe --all  (${undescribed.length} image(s) without description)`);
     }
   },
 });

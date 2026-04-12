@@ -11,7 +11,7 @@ import { dispatchTool } from "../core/dispatch.ts";
 
 export function createMcpServer(db: Database, dbPath: string): Server {
   const server = new Server(
-    { name: "gbrain", version: VERSION },
+    { name: "exo", version: VERSION },
     { capabilities: { tools: {} } }
   );
   const engine = new SqliteEngine(db);

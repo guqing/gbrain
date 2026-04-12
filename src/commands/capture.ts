@@ -28,8 +28,8 @@ export default defineCommand({
     } else {
       console.error("✗ No input. Provide text as an argument or pipe content via stdin.");
       console.error("  Examples:");
-      console.error("    gbrain capture \"quick note\"");
-      console.error("    cat file.md | gbrain capture --title \"My Document\"");
+      console.error("    exo capture \"quick note\"");
+      console.error("    cat file.md | exo capture --title \"My Document\"");
       process.exit(1);
     }
 
@@ -49,6 +49,6 @@ export default defineCommand({
 
     console.log(`✓ Captured to inbox: ${slug}`);
     console.log(`  Title: ${title}`);
-    console.log(`  Run 'gbrain compile' when ready to process.`);
+    console.log(`  Run 'exo compile' when ready to process.`);
   },
 });

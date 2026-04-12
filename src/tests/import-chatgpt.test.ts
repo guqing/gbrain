@@ -16,7 +16,7 @@ function freshEngine(): SqliteEngine {
 
 /** Create a temp directory and return its path. Caller must call cleanup(). */
 function makeTempDir(): [string, () => void] {
-  const dir = join(tmpdir(), `gbrain-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const dir = join(tmpdir(), `exo-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   mkdirSync(dir, { recursive: true });
   const cleanup = () => rmSync(dir, { recursive: true, force: true });
   return [dir, cleanup];

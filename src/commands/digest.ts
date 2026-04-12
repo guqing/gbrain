@@ -176,7 +176,7 @@ ${turns.slice(0, 20).map(t => `**${t.role === "user" ? "You" : "ChatGPT"}:** ${t
     if (!args["dry-run"]) {
       console.log(`\nDigest complete: ${created} created, ${updated} updated, ${skipped} skipped.`);
       if (created + updated > 0) {
-        console.log(`Run 'gbrain embed --all' to generate embeddings for imported content.`);
+        console.log(`Run 'exo embed --all' to generate embeddings for imported content.`);
       }
     }
   },

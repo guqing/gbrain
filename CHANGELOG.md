@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to gbrain are documented here.
+All notable changes to exo are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
@@ -8,12 +8,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [0.6.0.0] — 2026-04-11
 
 ### Added
-- **Unified content extraction** — `gbrain attach` now automatically extracts and indexes text from PDFs (per-page chunks), DOCX documents (per-paragraph chunks), and audio files (Whisper transcription). Video files are supported via `--transcribe` after extracting the audio track with ffmpeg.
+- **Unified content extraction** — `exo attach` now automatically extracts and indexes text from PDFs (per-page chunks), DOCX documents (per-paragraph chunks), and audio files (Whisper transcription). Video files are supported via `--transcribe` after extracting the audio track with ffmpeg.
 - **`ExtractorRegistry`** — new `src/core/extractors/` module with a pluggable extractor interface. Five built-in extractors: `PdfExtractor` (unpdf), `DocumentExtractor` (mammoth), `AudioExtractor` (Whisper API, injectable `fetchFn` for testing), `VideoExtractor` (ffmpeg → wav → Whisper), `ImageExtractor` (wraps existing vision API).
 - **`processFileContent()`** — single dispatch entry point in `src/core/file-processing.ts`. Replaces per-type branching with registry lookup, batches all chunk embeddings in one API call, and stores chunks via `upsertFileChunks`.
 - **`--no-embed` flag for `attach`** — extract and store text chunks without calling the embedding API. Useful for text indexing without vector search.
 - **`--transcribe` flag for `attach`** — opt-in audio/video transcription via Whisper.
-- **Keyword search across file chunks** — `gbrain query` now searches `fts_file_chunks` (FTS5) in addition to pages. PDF pages, DOCX paragraphs, and audio transcripts are all full-text searchable.
+- **Keyword search across file chunks** — `exo query` now searches `fts_file_chunks` (FTS5) in addition to pages. PDF pages, DOCX paragraphs, and audio transcripts are all full-text searchable.
 - **`[page-N]` / `[transcript]` chunk source labels** — query results now show which page or segment a match came from.
 - **`processed_at` column** on the `files` table — tracks which files have been fully extracted. `listUnprocessedFiles()` returns files pending extraction.
 - **`describe` command** extended to all supported MIME types via `registry.supports()` (previously images only).
@@ -35,16 +35,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 - **Multimodal file system** — New schema tables (`files`, `file_chunks`, `file_references`, `import_checkpoints`, `import_runs`) for tracking imported files with metadata, FTS5 full-text search, and vector embeddings.
-- **ChatGPT importer** (`gbrain import-chatgpt <dir>`) — Scans ChatGPT export archives, imports all conversations, and copies user-uploaded images into `~/.gbrain/files/`. Supports `--describe` flag to call a vision model (GPT-4o) and generate natural-language descriptions for each image.
-- **Vision description pipeline** — `gbrain describe <file>` calls the configured vision model and stores the description. Descriptions are indexed in FTS5 so images are searchable by their visual content.
-- **File management commands** — `gbrain files` lists imported files with size, type, and description status. `gbrain attach <path> <source>` manually attaches a file to a knowledge source. `gbrain detach <file>` removes a file record.
-- **Import history** — `gbrain imports` lists past import runs with status, conversation counts, and timestamps.
+- **ChatGPT importer** (`exo import-chatgpt <dir>`) — Scans ChatGPT export archives, imports all conversations, and copies user-uploaded images into `~/.exo/files/`. Supports `--describe` flag to call a vision model (GPT-4o) and generate natural-language descriptions for each image.
+- **Vision description pipeline** — `exo describe <file>` calls the configured vision model and stores the description. Descriptions are indexed in FTS5 so images are searchable by their visual content.
+- **File management commands** — `exo files` lists imported files with size, type, and description status. `exo attach <path> <source>` manually attaches a file to a knowledge source. `exo detach <file>` removes a file record.
+- **Import history** — `exo imports` lists past import runs with status, conversation counts, and timestamps.
 - **Resume-safe imports** — `import_checkpoints` table tracks per-source progress so interrupted imports resume without re-processing completed conversations.
 - **Vision config** — New `[vision]` section in `config.toml` (`base_url`, `api_key`, `model`) for configuring any OpenAI-compatible vision provider.
 - **FTS5 trigger fix** — Fixed `bm25()` usage in `searchKeyword`; now uses a subquery join on `rowid` which is the correct SQLite FTS5 pattern.
 
 ### Changed
-- Schema version bumped. `gbrain doctor` validates new tables.
+- Schema version bumped. `exo doctor` validates new tables.
 
 ---
 
@@ -56,8 +56,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added `UNIQUE INDEX` on `content_chunks(page_id, chunk_index)` (migration + schema) to support safe UPSERT.
 
 ### New Commands
-- `gbrain doctor` — 8 health checks (connection, FTS index, embedding coverage, orphan chunks, schema version, embed config, compile config, inbox backlog). `--json` flag for scripting. Exit 1 on failures.
-- `gbrain check-update` — Checks npm registry for newer versions. Only shows notification for minor/major bumps. Fail-silent with 10s timeout.
+- `exo doctor` — 8 health checks (connection, FTS index, embedding coverage, orphan chunks, schema version, embed config, compile config, inbox backlog). `--json` flag for scripting. Exit 1 on failures.
+- `exo check-update` — Checks npm registry for newer versions. Only shows notification for minor/major bumps. Fail-silent with 10s timeout.
 
 ### New MCP Tools
 - `brain_hybrid_search` — Reciprocal Rank Fusion (RRF) of FTS5 keyword + vector results (k=60). Falls back to keyword-only when embedding is unavailable.
@@ -76,7 +76,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [0.3.0] — 2025-05-09
 
 ### New Features
-- **Inbox + compile pipeline** — `gbrain harvest` now routes to inbox by default (`--direct` bypasses). `gbrain compile` processes inbox items through the LLM compile pipeline.
+- **Inbox + compile pipeline** — `exo harvest` now routes to inbox by default (`--direct` bypasses). `exo compile` processes inbox items through the LLM compile pipeline.
 - `compile_inbox` MCP tool — Agents can trigger inbox compilation directly.
 - `brain_keyword_search` MCP tool — Pure FTS5 keyword search (no embedding required).
 
@@ -90,11 +90,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [0.2.0] — 2025-04-xx
 
 ### New Features
-- **AI compilation layer** — `gbrain harvest` (Claude Code session logs), `gbrain digest` (ChatGPT exports)
-- `gbrain embed` — Vector embeddings via OpenAI `text-embedding-3-small`
-- `gbrain query` — Semantic search (FTS5 + cosine similarity merged)
-- `gbrain compile` — LLM compiles raw sources into structured knowledge pages
-- `gbrain sync` — Git-backed incremental sync with ancestry validation
+- **AI compilation layer** — `exo harvest` (Claude Code session logs), `exo digest` (ChatGPT exports)
+- `exo embed` — Vector embeddings via OpenAI `text-embedding-3-small`
+- `exo query` — Semantic search (FTS5 + cosine similarity merged)
+- `exo compile` — LLM compiles raw sources into structured knowledge pages
+- `exo sync` — Git-backed incremental sync with ancestry validation
 - Embedding abstraction interface (swappable providers)
 - Skills: harvest, digest, briefing, query, maintain, ingest
 
@@ -103,13 +103,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [0.1.0] — 2025-04-xx
 
 ### Initial Release
-- `gbrain init` — Create brain.db with full schema
-- `gbrain get/put/list/search` — Core CRUD + FTS5 search
-- `gbrain link/unlink/tag/untag/tags` — Cross-references and tags
-- `gbrain stats/health/lint` — Brain introspection
-- `gbrain export/import` — Lossless markdown round-trip
-- `gbrain serve` — MCP stdio server
-- `gbrain setup-mcp` — Auto-configure Claude Desktop
-- `gbrain versions/timeline/graph/backlinks` — Knowledge graph traversal
+- `exo init` — Create brain.db with full schema
+- `exo get/put/list/search` — Core CRUD + FTS5 search
+- `exo link/unlink/tag/untag/tags` — Cross-references and tags
+- `exo stats/health/lint` — Brain introspection
+- `exo export/import` — Lossless markdown round-trip
+- `exo serve` — MCP stdio server
+- `exo setup-mcp` — Auto-configure Claude Desktop
+- `exo versions/timeline/graph/backlinks` — Knowledge graph traversal
 - SQLite + FTS5, no native dependencies
-- Distribution via npm (`bun install -g gbrain`)
+- Distribution via npm (`bun install -g exo`)
