@@ -3,7 +3,7 @@ import { openDb, resolveDbPath } from "../core/db.ts";
 import { SqliteEngine } from "../core/sqlite-engine.ts";
 import { importFile } from "../core/import-file.ts";
 import { statSync, readdirSync } from "fs";
-import { join, relative, extname } from "path";
+import { join, relative, extname, basename, resolve } from "path";
 
 function findMarkdownFiles(dir: string): string[] {
   const files: string[] = [];
@@ -75,7 +75,8 @@ export default defineCommand({
       process.exit(1);
     }
 
-    const rel = args.slug ?? relative(process.cwd(), args.path).replace(/\.md$/, "");
+    const relPath = relative(resolve(process.cwd()), resolve(args.path)).replace(/\.md$/, "");
+    const rel = args.slug ?? (relPath.startsWith("..") ? basename(args.path, ".md") : relPath);
     const result = await importFile(engine, args.path, rel, { noEmbed });
 
     if (args.json) {

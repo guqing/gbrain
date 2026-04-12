@@ -1,6 +1,6 @@
 {
   "name": "@guqings/exo",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Your exocortex. Ingest ChatGPT exports, PDFs, and files into a searchable knowledge base. Hybrid FTS5 + vector search. LLM-compiled knowledge pages. MCP server for Claude Code and Cursor.",
   "type": "module",
   "bin": {
