@@ -1,5 +1,5 @@
 ---
-title: Exo
+title: GBrain
 type: project
 created: 2026-04-05
 updated: 2026-04-05
@@ -7,7 +7,7 @@ tags: [open-source, knowledge-base, sqlite, rag, thin-harness, fat-skills]
 sources: [GStack-YC-Spring-2026-Talk-pptx]
 ---
 
-# Exo
+# GBrain
 
 > Open-source personal knowledge brain. SQLite + FTS5 + vector embeddings in one file. Thin CLI harness, fat skill files. The knowledge layer to GStack's coding layer. Together: intelligence on tap.
 
@@ -17,7 +17,7 @@ sources: [GStack-YC-Spring-2026-Talk-pptx]
 - **What:** Personal knowledge base as a single SQLite database with full-text search, vector embeddings, and structured queries. Thin CLI, fat markdown skills. MCP-ready from day one.
 - **Why:** Git doesn't scale past ~5K files. The current brain has 1,222 people dossiers, 7,471 markdown files, 2.3GB. Git is choking. The wiki brain pattern (Karpathy compiled truth + timeline) is right — it just needs a real database underneath.
 - **Architecture:** Thin CLI harness, fat skills (same as GStack)
-- **Repo:** github.com/garrytan/exo
+- **Repo:** github.com/garrytan/gbrain
 
 ## Open Threads
 
@@ -31,7 +31,7 @@ sources: [GStack-YC-Spring-2026-Talk-pptx]
 
 ---
 
-# Exo: Complete Build Spec
+# GBrain: Complete Build Spec
 
 ## 1. Premises
 
@@ -43,7 +43,7 @@ Postgres is better if you need multi-user writes, replication, or row-level secu
 
 ### Why FTS5 + vector in the same DB?
 
-One query interface. No separate Pinecone, no Chroma sidecar, no Qdrant container. Full-text search and semantic search live in the same database, queryable from the same connection. A single `exo query` can fan out to FTS5 for keyword matches and vector similarity for semantic matches, merge results, and return a ranked answer — all without network hops or service coordination.
+One query interface. No separate Pinecone, no Chroma sidecar, no Qdrant container. Full-text search and semantic search live in the same database, queryable from the same connection. A single `gbrain query` can fan out to FTS5 for keyword matches and vector similarity for semantic matches, merge results, and return a ranked answer — all without network hops or service coordination.
 
 ### Why thin CLI + fat skills?
 
@@ -56,16 +56,16 @@ Proven by GStack at 64K+ stars. The CLI is ~500 lines of TypeScript that dispatc
 
 ### Why MCP from day one?
 
-Every AI tool — Claude Code, Wintermute, Cursor, Windsurf, any future MCP client — needs to read and write the brain. MCP (Model Context Protocol) is the emerging standard for tool-use. If exo exposes an MCP server, any compliant client can search, read, write, ingest, and query the brain without custom integration.
+Every AI tool — Claude Code, Wintermute, Cursor, Windsurf, any future MCP client — needs to read and write the brain. MCP (Model Context Protocol) is the emerging standard for tool-use. If gbrain exposes an MCP server, any compliant client can search, read, write, ingest, and query the brain without custom integration.
 
-Stdio transport means zero config: `exo serve` and pipe it to the client.
+Stdio transport means zero config: `gbrain serve` and pipe it to the client.
 
 ### Lossless migration
 
 The current brain at `/data/brain/` has 7,471 markdown files with YAML frontmatter, compiled truth sections, timelines, wiki links, tags, and `.raw/` JSON sidecars. The migration to SQLite must be:
 
 1. **Lossless** — every byte of content preserved
-2. **Round-trippable** — `exo export` recreates the original markdown directory structure
+2. **Round-trippable** — `gbrain export` recreates the original markdown directory structure
 3. **Verifiable** — page count, content hash, link count all validated post-migration
 
 ---
@@ -255,49 +255,49 @@ INSERT INTO config (key, value) VALUES
 Stolen from `bin/gl` in Garry's List. The CLI is a thin dispatcher:
 
 ```
-bin/exo <command> [args...]     # dispatch to command handler
-bin/exo call <tool> '<json>'    # raw tool call (GL pattern)
-bin/exo --tools-json            # tool discovery for Claude Code
-bin/exo pipe                    # JSONL pipe mode for streaming
+bin/gbrain <command> [args...]     # dispatch to command handler
+bin/gbrain call <tool> '<json>'    # raw tool call (GL pattern)
+bin/gbrain --tools-json            # tool discovery for Claude Code
+bin/gbrain pipe                    # JSONL pipe mode for streaming
 ```
 
 ### Command reference
 
 ```
-exo get <slug>                          # read a page by slug
-exo put <slug> [< file.md]             # write/update a page (stdin or file)
-exo search <query>                      # FTS5 full-text search
-exo query <question>                    # semantic search → ranked results
-exo ingest <file> [--type meeting|article|doc|conversation]
+gbrain get <slug>                          # read a page by slug
+gbrain put <slug> [< file.md]             # write/update a page (stdin or file)
+gbrain search <query>                      # FTS5 full-text search
+gbrain query <question>                    # semantic search → ranked results
+gbrain ingest <file> [--type meeting|article|doc|conversation]
                                            # ingest a source document
-exo link <from-slug> <to-slug> [--context "..."]
+gbrain link <from-slug> <to-slug> [--context "..."]
                                            # create cross-reference
-exo unlink <from-slug> <to-slug>        # remove cross-reference
-exo tags <slug>                         # list tags for a page
-exo tag <slug> <tag>                    # add tag
-exo untag <slug> <tag>                  # remove tag
-exo timeline <slug>                     # show timeline entries
-exo timeline-add <slug> --date YYYY-MM-DD --summary "..." [--source "..."] [--detail "..."]
+gbrain unlink <from-slug> <to-slug>        # remove cross-reference
+gbrain tags <slug>                         # list tags for a page
+gbrain tag <slug> <tag>                    # add tag
+gbrain untag <slug> <tag>                  # remove tag
+gbrain timeline <slug>                     # show timeline entries
+gbrain timeline-add <slug> --date YYYY-MM-DD --summary "..." [--source "..."] [--detail "..."]
                                            # add structured timeline entry
-exo backlinks <slug>                    # show pages linking TO this slug
-exo list [--type person] [--tag yc-alum] [--limit 50]
+gbrain backlinks <slug>                    # show pages linking TO this slug
+gbrain list [--type person] [--tag yc-alum] [--limit 50]
                                            # list pages with filters
-exo stats                               # brain statistics
-exo export [--dir ./export/]            # export to markdown files
-exo import <dir>                        # import from markdown directory
-exo embed [<slug>|--all]                # generate/regenerate embeddings
-exo serve                               # start MCP server (stdio)
-exo call <tool> '<json>'                # raw tool call
-exo --tools-json                        # tool discovery JSON
-exo pipe                                # JSONL pipe mode
-exo version                             # version info
-exo init [path]                         # create a new brain.db
+gbrain stats                               # brain statistics
+gbrain export [--dir ./export/]            # export to markdown files
+gbrain import <dir>                        # import from markdown directory
+gbrain embed [<slug>|--all]                # generate/regenerate embeddings
+gbrain serve                               # start MCP server (stdio)
+gbrain call <tool> '<json>'                # raw tool call
+gbrain --tools-json                        # tool discovery JSON
+gbrain pipe                                # JSONL pipe mode
+gbrain version                             # version info
+gbrain init [path]                         # create a new brain.db
 ```
 
 ### CLI architecture
 
 ```
-bin/exo                    # compiled Bun binary (~10MB)
+bin/gbrain                    # compiled Bun binary (~10MB)
   ├── src/cli.ts              # argument parser + command dispatcher
   ├── src/commands/            # one file per command
   │   ├── get.ts
@@ -330,21 +330,21 @@ bin/exo                    # compiled Bun binary (~10MB)
 
 - Default: plain text / markdown (human-readable, Claude-friendly)
 - `--json`: JSON output for programmatic use
-- `exo pipe`: JSONL streaming mode (one JSON object per line)
-- `exo --tools-json`: tool discovery format (compatible with Claude Code tool use)
+- `gbrain pipe`: JSONL streaming mode (one JSON object per line)
+- `gbrain --tools-json`: tool discovery format (compatible with Claude Code tool use)
 
 ### Database location
 
 Default: `./brain.db` in current directory. Override with:
 
-- `EXO_DB` environment variable
+- `GBRAIN_DB` environment variable
 - `--db /path/to/brain.db` flag
 
 ### Example session
 
 ```bash
 # Import existing brain
-$ exo import /data/brain/
+$ gbrain import /data/brain/
 Importing 7,471 files...
   people: 1,222 pages
   companies: 847 pages
@@ -357,14 +357,14 @@ Done. brain.db: 487MB (with embeddings: 1.2GB)
 Validation: 7,471 files → 7,471 pages ✓
 
 # Search
-$ exo search "River AI"
+$ gbrain search "River AI"
 people/ali-partovi.md (score: 12.3)
   ...River AI board member since 2024...
 companies/river-ai.md (score: 45.7)
   ...River AI is building...
 
 # Semantic query
-$ exo query "who knows Jensen Huang?"
+$ gbrain query "who knows Jensen Huang?"
 Searching 7,471 pages (FTS5 + vector)...
   people/ali-partovi.md — mentioned NVIDIA partnership
   people/ilya-sutskever.md — co-presented at NeurIPS
@@ -372,7 +372,7 @@ Searching 7,471 pages (FTS5 + vector)...
   ...
 
 # Read a page
-$ exo get pedro-franceschi
+$ gbrain get pedro-franceschi
 ---
 title: Pedro Franceschi
 type: person
@@ -382,10 +382,10 @@ type: person
 > Co-founder and CEO of Brex. YC alum...
 
 # Update a page
-$ cat updated-pedro.md | exo put people/pedro-franceschi
+$ cat updated-pedro.md | gbrain put people/pedro-franceschi
 
 # Check stats
-$ exo stats
+$ gbrain stats
 Pages:           7,471
   people:        1,222
   companies:       847
@@ -400,8 +400,8 @@ Embeddings:     41,203 chunks
 DB size:         1.2GB
 
 # Start MCP server
-$ exo serve
-Exo MCP server running (stdio)
+$ gbrain serve
+GBrain MCP server running (stdio)
 Tools: search, get, put, ingest, link, query, timeline, tags, list, stats
 ```
 
@@ -411,7 +411,7 @@ Tools: search, get, put, ingest, link, query, timeline, tags, list, stats
 
 ### Transport
 
-Stdio (standard MCP). The client spawns `exo serve` as a subprocess and communicates via stdin/stdout JSON-RPC.
+Stdio (standard MCP). The client spawns `gbrain serve` as a subprocess and communicates via stdin/stdout JSON-RPC.
 
 ### Configuration
 
@@ -420,8 +420,8 @@ Claude Code `~/.claude/mcp.json`:
 ```json
 {
   "mcpServers": {
-    "exo": {
-      "command": "exo",
+    "gbrain": {
+      "command": "gbrain",
       "args": ["serve", "--db", "/path/to/brain.db"]
     }
   }
@@ -471,7 +471,7 @@ Skills live in `skills/` at the repo root. Each is a standalone markdown file th
 
 ```markdown
 ---
-name: exo-ingest
+name: gbrain-ingest
 description: |
   Ingest meetings, articles, docs, and conversations into the brain.
   Follows the compiled truth + timeline architecture: update existing
@@ -486,26 +486,26 @@ description: |
    Identify: participants, companies, topics, decisions, action items.
 
 2. **For each entity mentioned:**
-   - `exo get <slug>` — does a page exist?
+   - `gbrain get <slug>` — does a page exist?
    - **If yes:** Read current compiled_truth. Rewrite State section with new info.
-     Append to timeline. `exo put <slug>` with updated content.
+     Append to timeline. `gbrain put <slug>` with updated content.
    - **If no:** Create page using the appropriate template from schema.
-     `exo put <slug>` with new content.
+     `gbrain put <slug>` with new content.
 
 3. **Extract and create links.**
-   - For every entity-to-entity reference, `exo link <from> <to> --context "..."`.
+   - For every entity-to-entity reference, `gbrain link <from> <to> --context "..."`.
    - Links are bidirectional in meaning but stored directionally. Create both if both pages exist.
 
 4. **Parse timeline entries.**
    - For each datable event in the source:
-     `exo timeline-add <slug> --date YYYY-MM-DD --summary "..." --source "meeting/123"`
+     `gbrain timeline-add <slug> --date YYYY-MM-DD --summary "..." --source "meeting/123"`
 
 5. **Log the ingest.**
-   - The system auto-logs to ingest_log. Verify with `exo stats`.
+   - The system auto-logs to ingest_log. Verify with `gbrain stats`.
 
 6. **Handle raw data.**
    - If the source includes structured data (API responses, JSON), store via
-     `exo call brain_raw '{"slug":"...","source":"meeting","data":{...}}'`
+     `gbrain call brain_raw '{"slug":"...","source":"meeting","data":{...}}'`
 
 ## Entry criteria
 
@@ -530,7 +530,7 @@ Not everything gets a page. The bar:
 
 ```markdown
 ---
-name: exo-query
+name: gbrain-query
 description: |
   Answer questions from the brain using FTS5 + semantic search + structured queries.
   Synthesize across multiple pages. Cite sources.
@@ -540,14 +540,14 @@ description: |
 
 ## Strategy: Three-layer search
 
-1. **FTS5 keyword search** — `exo search "<query>"` — fast, exact matches.
+1. **FTS5 keyword search** — `gbrain search "<query>"` — fast, exact matches.
    Best for: names, company names, specific terms.
 
-2. **Semantic vector search** — `exo query "<question>"` — meaning-based.
+2. **Semantic vector search** — `gbrain query "<question>"` — meaning-based.
    Best for: "who knows X?", "what's our thesis on Y?", conceptual questions.
 
-3. **Structured queries** — `exo list --type person --tag yc-alum` +
-   `exo backlinks <slug>` — relational navigation.
+3. **Structured queries** — `gbrain list --type person --tag yc-alum` +
+   `gbrain backlinks <slug>` — relational navigation.
    Best for: "all YC founders in batch W25", "who links to Jensen Huang?"
 
 ## Workflow
@@ -556,7 +556,7 @@ description: |
 2. Run FTS5 search for key terms.
 3. Run semantic query for the full question.
 4. Merge and deduplicate results.
-5. For top results, `exo get <slug>` to read full pages.
+5. For top results, `gbrain get <slug>` to read full pages.
 6. Synthesize answer with citations: "[Pedro Franceschi](people/pedro-franceschi)"
 7. If the answer is valuable enough to keep, consider creating a new page.
 
@@ -577,7 +577,7 @@ Suggest enrichment: "Want me to research X via Happenstance/Crustdata and add th
 
 ```markdown
 ---
-name: exo-maintain
+name: gbrain-maintain
 description: |
   Periodic brain maintenance. Find contradictions, stale info, orphan pages,
   missing cross-references. Keep the knowledge graph healthy.
@@ -595,14 +595,14 @@ description: |
 
 ### 2. Stale info
 
-- `exo list --type person` → for each, check if compiled_truth references
+- `gbrain list --type person` → for each, check if compiled_truth references
   dates > 6 months old without newer timeline entries
 - Flag pages where the State section hasn't been updated but timeline has new entries
 - These need their compiled_truth rewritten from latest timeline evidence
 
 ### 3. Orphan pages
 
-- `exo list` → for each, `exo backlinks <slug>`
+- `gbrain list` → for each, `gbrain backlinks <slug>`
 - Pages with zero inbound links are orphans
 - Either add links from related pages or flag for potential deletion
 
@@ -629,19 +629,19 @@ description: |
 ### 8. Embedding freshness
 
 - Pages updated since last embedding generation need re-embedding
-- `exo embed --stale` to find and re-embed outdated pages
+- `gbrain embed --stale` to find and re-embed outdated pages
 
 ## Output
 
 Generate a maintenance report as a source page:
-`exo put sources/maintenance-YYYY-MM-DD` with findings and actions taken.
+`gbrain put sources/maintenance-YYYY-MM-DD` with findings and actions taken.
 ```
 
 ### skills/enrich/SKILL.md
 
 ```markdown
 ---
-name: exo-enrich
+name: gbrain-enrich
 description: |
   Enrich person and company pages from external sources.
   Crustdata, Happenstance, Exa, Captain (Pitchbook). Validation rules enforced.
@@ -671,7 +671,7 @@ description: |
    - Name mismatch (different last name) → skip.
    - Obviously joke profiles → skip.
 
-4. **Store raw data** — `exo call brain_raw '{"slug":"people/name","source":"crustdata","data":{...}}'`
+4. **Store raw data** — `gbrain call brain_raw '{"slug":"people/name","source":"crustdata","data":{...}}'`
 
 5. **Distill to page** — Update compiled_truth with:
    - Location, current title, company, headline
@@ -700,7 +700,7 @@ description: |
 
 ```markdown
 ---
-name: exo-briefing
+name: gbrain-briefing
 description: |
   Compile a daily briefing from brain state plus real-time sources.
   What changed, what's coming, who's waiting, what needs attention.
@@ -713,13 +713,13 @@ description: |
 1. **Calendar** — Today's meetings from external calendar source.
    For each meeting: pull brain pages for participants, surface key context.
 
-2. **Active deals** — `exo list --type deal --tag active`
+2. **Active deals** — `gbrain list --type deal --tag active`
    State + deadlines + what's changed since last briefing.
 
 3. **Open threads** — Scan pages for Open Threads with time-sensitive items.
    Sort by urgency.
 
-4. **Recent brain changes** — `exo list` sorted by updated_at, last 24h.
+4. **Recent brain changes** — `gbrain list` sorted by updated_at, last 24h.
    What was updated, what was ingested, what's new.
 
 5. **People in play** — People pages updated in last 7 days with score ≥ 3.
@@ -739,7 +739,7 @@ Return formatted markdown suitable for Telegram delivery.
 
 ### From `/data/brain/` (7,471 files, 2.3GB) → brain.db
 
-The migration is implemented as `exo import <dir>`. Here's the exact algorithm:
+The migration is implemented as `gbrain import <dir>`. Here's the exact algorithm:
 
 ### Step 1: Scan directory
 
@@ -870,7 +870,7 @@ db.exec("COMMIT");
 // schema.md → config table as 'original_schema'
 ```
 
-### Round-trip: `exo export`
+### Round-trip: `gbrain export`
 
 The export command reconstructs the original directory structure:
 
@@ -911,14 +911,14 @@ function exportPage(page: Page): string {
 ║                │                             │               ║
 ║     ┌──────────▼───────────┐    ┌────────────▼──────────┐   ║
 ║     │   MCP Server         │    │   CLI                  │   ║
-║     │   (stdio transport)  │    │   bin/exo           │   ║
-║     │   exo serve       │    │   compiled Bun binary  │   ║
+║     │   (stdio transport)  │    │   bin/gbrain           │   ║
+║     │   gbrain serve       │    │   compiled Bun binary  │   ║
 ║     └──────────┬───────────┘    └────────────┬──────────┘   ║
 ║                │                             │               ║
 ║                └────────────┬────────────────┘               ║
 ║                             │                                ║
 ║                  ┌──────────▼──────────┐                     ║
-║                  │    exo-core      │                     ║
+║                  │    gbrain-core      │                     ║
 ║                  │    (TypeScript)     │                     ║
 ║                  │                     │                     ║
 ║                  │  ┌───────────────┐  │                     ║
@@ -967,19 +967,19 @@ function exportPage(page: Page): string {
 Source document (meeting notes, article, transcript)
     │
     ▼
-exo ingest (or brain_ingest MCP tool)
+gbrain ingest (or brain_ingest MCP tool)
     │
     ├─→ Parse entities, decisions, relationships
     │
     ├─→ For each entity:
-    │     ├─ exo get <slug>  →  exists? update compiled_truth
-    │     └─ doesn't exist?     →  exo put <slug> (create)
+    │     ├─ gbrain get <slug>  →  exists? update compiled_truth
+    │     └─ doesn't exist?     →  gbrain put <slug> (create)
     │
-    ├─→ exo link (cross-references)
+    ├─→ gbrain link (cross-references)
     │
-    ├─→ exo timeline-add (structured entries)
+    ├─→ gbrain timeline-add (structured entries)
     │
-    ├─→ exo embed <slug> (update vectors)
+    ├─→ gbrain embed <slug> (update vectors)
     │
     └─→ ingest_log entry (automatic)
 ```
@@ -990,7 +990,7 @@ exo ingest (or brain_ingest MCP tool)
 "Who knows Jensen Huang?"
     │
     ▼
-exo query
+gbrain query
     │
     ├─→ FTS5: search for "Jensen Huang" → ranked page list
     │
@@ -998,7 +998,7 @@ exo query
     │
     ├─→ Merge + deduplicate + re-rank
     │
-    ├─→ For top results: exo get <slug> → full page content
+    ├─→ For top results: gbrain get <slug> → full page content
     │
     └─→ Return: ranked pages with relevant excerpts
 ```
@@ -1025,20 +1025,20 @@ exo query
 bun run src/cli.ts -- get people/pedro-franceschi
 
 # Compile
-bun build --compile --outfile bin/exo src/cli.ts
+bun build --compile --outfile bin/gbrain src/cli.ts
 
 # Test
 bun test
 
 # Install globally
-cp bin/exo /usr/local/bin/exo
+cp bin/gbrain /usr/local/bin/gbrain
 ```
 
 ### Dependencies (minimal)
 
 ```json
 {
-  "name": "exo",
+  "name": "gbrain",
   "version": "0.1.0",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
@@ -1057,7 +1057,7 @@ No remark needed at build time — link extraction uses regex (faster, simpler f
 
 ## 9. What Makes This Different
 
-|                 | Obsidian           | Notion            | RAG frameworks        | Exo                                             |
+|                 | Obsidian           | Notion            | RAG frameworks        | GBrain                                             |
 | --------------- | ------------------ | ----------------- | --------------------- | -------------------------------------------------- |
 | GUI             | Electron app       | Web app           | N/A                   | None. CLI + MCP.                                   |
 | Storage         | Markdown files     | Cloud DB          | External vector store | Single SQLite file                                 |
@@ -1069,7 +1069,7 @@ No remark needed at build time — link extraction uses regex (faster, simpler f
 | Scale           | Fine to ~10K files | Fine              | Depends on vector DB  | SQLite handles millions of rows                    |
 | Git-friendly    | Yes (it's files)   | No                | No                    | Via export (escape hatch). DB itself needs no git. |
 
-**The core insight:** Exo is not a note-taking app. It's a **compiled knowledge graph** with structured workflows, maintained by AI agents, queryable by any MCP client. The intelligence lives in fat markdown skills, not in application code. Claude Code reads `ingest/SKILL.md` and knows exactly how to process a meeting transcript into cross-referenced, timeline-annotated brain pages — without any of that logic being coded into the binary.
+**The core insight:** GBrain is not a note-taking app. It's a **compiled knowledge graph** with structured workflows, maintained by AI agents, queryable by any MCP client. The intelligence lives in fat markdown skills, not in application code. Claude Code reads `ingest/SKILL.md` and knows exactly how to process a meeting transcript into cross-referenced, timeline-annotated brain pages — without any of that logic being coded into the binary.
 
 ---
 
@@ -1096,7 +1096,7 @@ No remark needed at build time — link extraction uses regex (faster, simpler f
 
 - Configurable via `config` table. The `page_embeddings.model` column tracks which model generated each embedding, allowing mixed models during migration.
 - Alternative providers: Voyage AI (`voyage-3`, better for code), local nomic-embed (free, slower, requires local inference).
-- Config: `exo config set embedding_model voyage-3`
+- Config: `gbrain config set embedding_model voyage-3`
 
 ### Chunk strategy
 
@@ -1121,7 +1121,7 @@ No remark needed at build time — link extraction uses regex (faster, simpler f
 
 **Recommended: Yes, from day one.**
 
-- Each brain is one `.db` file. `EXO_DB=/path/to/work.db exo stats`
+- Each brain is one `.db` file. `GBRAIN_DB=/path/to/work.db gbrain stats`
 - The CLI, MCP server, and all commands work against whichever DB is specified.
 - No application-level complexity needed — just a different file path.
 - Use cases: personal brain, work brain, project-specific brain, shared team brain.
@@ -1130,17 +1130,17 @@ No remark needed at build time — link extraction uses regex (faster, simpler f
 
 **Recommended: Explicit commands only (v1).**
 
-- `exo import` and `exo put` are explicit writes.
+- `gbrain import` and `gbrain put` are explicit writes.
 - No file watcher. No fsnotify. No daemon sitting in the background.
 - Rationale: The brain is written by AI agents, not by humans editing markdown in Vim. The agents use the CLI or MCP. There's no "file on disk changed" event to watch for.
-- Future: if someone wants an Obsidian-like editing experience, a `exo watch <dir>` command could sync a markdown directory to the DB. But that's v2.
+- Future: if someone wants an Obsidian-like editing experience, a `gbrain watch <dir>` command could sync a markdown directory to the DB. But that's v2.
 
 ---
 
 ## 11. Repository Structure
 
 ```
-exo/
+gbrain/
 ├── README.md                  # Project overview + quick start
 ├── CLAUDE.md                  # Claude Code instructions
 ├── LICENSE                    # MIT
@@ -1149,7 +1149,7 @@ exo/
 ├── bun.lock
 │
 ├── bin/
-│   └── exo                 # compiled binary (gitignored, built via bun build)
+│   └── gbrain                 # compiled binary (gitignored, built via bun build)
 │
 ├── src/
 │   ├── cli.ts                 # entry point: arg parsing + command dispatch
@@ -1212,7 +1212,7 @@ exo/
 ```markdown
 # CLAUDE.md
 
-Exo is a personal knowledge brain. SQLite + FTS5 + vector embeddings in one file.
+GBrain is a personal knowledge brain. SQLite + FTS5 + vector embeddings in one file.
 
 ## Architecture
 
@@ -1232,7 +1232,7 @@ use the tools — ingest meetings, answer queries, maintain the brain, enrich fr
 
 ## Commands
 
-Run `exo --help` or `exo --tools-json` for full command reference.
+Run `gbrain --help` or `gbrain --tools-json` for full command reference.
 
 ## Testing
 
@@ -1247,7 +1247,7 @@ enrichment.
 
 ## Build
 
-`bun build --compile --outfile bin/exo src/cli.ts`
+`bun build --compile --outfile bin/gbrain src/cli.ts`
 ```
 
 ---
@@ -1316,5 +1316,5 @@ For Claude Code to build this in a single session:
 
 ## Timeline
 
-- **2026-04-05** | Garry asked Wintermute to spec Exo as open-source project. Inspired by hitting git scaling limits at 7,471 files / 2.3GB in the wiki brain.
+- **2026-04-05** | Garry asked Wintermute to spec GBrain as open-source project. Inspired by hitting git scaling limits at 7,471 files / 2.3GB in the wiki brain.
 - **2026-04-05** | Spec v1 complete. Schema designed, CLI defined, migration plan detailed, skills drafted, architecture documented. Ready to build.
