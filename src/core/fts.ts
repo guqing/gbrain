@@ -71,13 +71,37 @@ export function buildSearchTokens(text: string): string {
 
 /**
  * Preprocess a search query for FTS5:
- * 1. Expand CJK into bigrams (aligns with search_tokens index)
- * 2. Strip characters that cause FTS5 parse errors
+ * - CJK characters: emit ONLY unigrams (single chars). This avoids cross-boundary
+ *   bigrams that exist in the query but not in any document, which would cause
+ *   FTS5's implicit AND to return zero results. The bigram index on documents
+ *   ensures precision; unigrams in queries maximize recall.
+ * - ASCII/Latin words: kept as-is (porter stemmer handles them).
+ *
+ * Example: "git 提交邮箱修改" → "git 提 交 邮 箱 修 改"
  */
 function preprocessFtsQuery(raw: string): string {
-  // Expand CJK bigrams first, then clean up
-  const expanded = buildSearchTokens(raw);
-  return expanded
+  const tokens: string[] = [];
+  let i = 0;
+  while (i < raw.length) {
+    const cp = raw.codePointAt(i)!;
+    if (isCJK(cp)) {
+      // Single CJK character as unigram — do NOT generate bigrams for queries
+      tokens.push(raw[i]);
+      i++;
+    } else if (cp <= 32 || cp === 0x3000) {
+      i++;
+    } else {
+      let word = "";
+      while (i < raw.length) {
+        const c = raw.codePointAt(i)!;
+        if (isCJK(c) || c <= 32 || c === 0x3000) break;
+        word += raw[i++];
+      }
+      if (word) tokens.push(word);
+    }
+  }
+  const deduped = [...new Set(tokens)].join(" ");
+  return deduped
     .replace(/[…\u2014\u2013\u201c\u201d\u2018\u2019]/g, " ")
     .replace(/\s{2,}/g, " ")
     .trim();

@@ -413,6 +413,26 @@ export function migrateDb(db: Database): void {
 
     // Rebuild FTS index from the now-populated search_tokens column.
     db.exec(`INSERT INTO page_fts(page_fts) VALUES('rebuild')`);
+  } else {
+    // Secondary guard: if the column exists but all rows are empty, the backfill
+    // failed (e.g., old binary ran the migration before buildSearchTokens existed).
+    // Re-run the backfill automatically.
+    const emptyCount = db.query<{ n: number }, []>(
+      "SELECT COUNT(*) AS n FROM pages WHERE length(search_tokens) = 0"
+    ).get()!.n;
+    const totalCount = db.query<{ n: number }, []>("SELECT COUNT(*) AS n FROM pages").get()!.n;
+    if (totalCount > 0 && emptyCount === totalCount) {
+      type PageRow2 = { id: number; title: string; compiled_truth: string; timeline: string };
+      const allPages = db.query<PageRow2, []>(
+        "SELECT id, title, compiled_truth, timeline FROM pages"
+      ).all();
+      const refill = db.prepare("UPDATE pages SET search_tokens = ? WHERE id = ?");
+      for (const p of allPages) {
+        const raw = [p.title, p.compiled_truth, p.timeline].join(" ");
+        refill.run(buildSearchTokens(raw), p.id);
+      }
+      db.exec(`INSERT INTO page_fts(page_fts) VALUES('rebuild')`);
+    }
   }
 
   // Add link_type to links if missing
