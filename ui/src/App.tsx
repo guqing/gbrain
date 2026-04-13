@@ -673,7 +673,7 @@ export function App() {
           <button
             key={node.id}
             className={cn(
-              "flex min-h-10 w-full items-center gap-3 rounded-md px-2.5 text-left text-[15px] transition-colors",
+              "flex min-h-10 w-full overflow-hidden items-center gap-3 rounded-md px-2.5 text-left text-[15px] transition-colors",
               active ? "bg-primary/[0.08] text-foreground" : "text-muted-foreground hover:bg-muted/55 hover:text-foreground"
             )}
             onClick={() => selectItem(node.item)}
@@ -697,7 +697,7 @@ export function App() {
         <div className="space-y-1" key={node.id}>
           <button
             className={cn(
-              "flex min-h-10 w-full items-center gap-3 rounded-md px-2.5 text-left text-[15px] transition-colors",
+              "flex min-h-10 w-full overflow-hidden items-center gap-3 rounded-md px-2.5 text-left text-[15px] transition-colors",
               inCurrentPath ? "bg-muted/65 text-foreground" : "text-muted-foreground hover:bg-muted/55 hover:text-foreground"
             )}
             onClick={() => setCollapsed((prev) => ({ ...prev, [node.id]: !isCollapsed }))}
@@ -719,7 +719,7 @@ export function App() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="grid min-h-screen xl:grid-cols-[320px_minmax(0,1fr)]">
-        <aside className="border-b border-border bg-sidebar/95 xl:border-b-0 xl:border-r">
+        <aside className="overflow-hidden border-b border-border bg-sidebar/95 xl:border-b-0 xl:border-r">
           <div className="flex h-full min-h-0 flex-col">
             <div className="px-5 pb-4 pt-6">
               <div className="flex items-center gap-3">
@@ -896,7 +896,7 @@ export function App() {
             </ScrollArea>
           ) : (
             /* ─── Browse / reader view ─── */
-            <div className="grid min-h-screen xl:grid-cols-[minmax(0,1fr)_280px]">
+            <div className="grid min-h-screen overflow-hidden xl:grid-cols-[minmax(0,1fr)_280px]">
               <ScrollArea className="min-h-0">
                 <article ref={readerScrollRef} className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-8 xl:px-8 xl:py-10">
                   {/* Back to search results */}
@@ -1037,12 +1037,12 @@ export function App() {
                 </article>
               </ScrollArea>
 
-              <ScrollArea className="min-w-0 bg-transparent">
-                <aside className="flex h-full flex-col gap-4 overflow-hidden px-5 py-8 xl:px-5 xl:py-10">
-                  <Card className="border-0 bg-muted/35 shadow-none">
+              <ScrollArea className="min-w-0 w-full bg-transparent">
+                <aside className="flex w-full flex-col gap-4 overflow-hidden px-5 py-8 xl:px-5 xl:py-10">
+                  <Card className="w-full overflow-hidden border-0 bg-muted/35 shadow-none">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">On this page</CardTitle>
-                      <CardDescription>Jump through the current markdown structure.</CardDescription>
+                      <CardDescription className="break-words">Jump through the current markdown structure.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-2">
                       {headings.length === 0 ? (
@@ -1065,18 +1065,18 @@ export function App() {
                     </CardContent>
                   </Card>
 
-                  <Card className="border-0 bg-muted/35 shadow-none">
+                  <Card className="w-full overflow-hidden border-0 bg-muted/35 shadow-none">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">Page details</CardTitle>
-                      <CardDescription>Metadata, provenance, and attached files.</CardDescription>
+                      <CardDescription className="break-words">Metadata, provenance, and attached files.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       {reader ? (
                         <>
                           <div className="space-y-3 text-sm">
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-muted-foreground">Updated</span>
-                              <span className="font-medium">{formatUpdatedAt(reader.metadata.updated_at)}</span>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="shrink-0 text-muted-foreground">Updated</span>
+                              <span className="truncate font-medium text-right">{formatUpdatedAt(reader.metadata.updated_at)}</span>
                             </div>
                             <div className="flex items-center justify-between gap-3">
                               <span className="text-muted-foreground">Confidence</span>
@@ -1134,10 +1134,10 @@ export function App() {
                     </CardContent>
                   </Card>
 
-                  <Card className="border-0 bg-muted/35 shadow-none">
+                  <Card className="w-full overflow-hidden border-0 bg-muted/35 shadow-none">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">Related</CardTitle>
-                      <CardDescription>Follow outgoing links and backlinks from the current page.</CardDescription>
+                      <CardDescription className="break-words">Follow outgoing links and backlinks from the current page.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-2">
                       {reader?.related.length ? (
