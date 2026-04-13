@@ -573,8 +573,10 @@ export function App() {
   const headings = useMemo(() => extractHeadings(renderedMarkdown), [renderedMarkdown]);
   const tree = useMemo(() => buildTree(items, section, query), [items, query, section]);
   const summaryText = useMemo(() => {
-    const raw = currentItem?.chunk_text ?? currentItem?.preview ?? (reader ? firstParagraph(renderedMarkdown) : "");
-    return stripMarkdownSyntax(raw);
+    // Prefer full reader content (already frontmatter-stripped) to avoid truncated/raw previews from DB
+    if (reader) return firstParagraph(renderedMarkdown);
+    const raw = currentItem?.chunk_text ?? currentItem?.preview ?? "";
+    return stripMarkdownSyntax(stripFrontmatter(raw));
   }, [currentItem, reader, renderedMarkdown]);
   const currentTreePath = useMemo(() => {
     if (!currentItem) return [];
@@ -1037,7 +1039,7 @@ export function App() {
                 </article>
               </ScrollArea>
 
-              <div className="w-[280px] shrink-0 overflow-x-hidden overflow-y-auto border-l bg-transparent">
+              <div className="w-[280px] shrink-0 overflow-x-hidden overflow-y-auto bg-transparent">
                 <aside className="flex w-full min-w-0 flex-col gap-4 overflow-hidden px-5 py-8 xl:px-5 xl:py-10">
                   <Card className="w-full overflow-hidden border-0 bg-muted/35 shadow-none">
                     <CardHeader className="pb-3">
