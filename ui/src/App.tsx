@@ -587,7 +587,7 @@ export function App() {
       let branch = "";
       currentTreePath.forEach((segment) => {
         branch = branch ? `${branch}/${segment}` : segment;
-        delete next[branch];
+        next[branch] = false; // explicitly expand, don't delete (delete reverts to collapsed default)
       });
       return next;
     });
@@ -896,8 +896,8 @@ export function App() {
             </ScrollArea>
           ) : (
             /* ─── Browse / reader view ─── */
-            <div className="grid min-h-screen overflow-hidden xl:grid-cols-[minmax(0,1fr)_280px]">
-              <ScrollArea className="min-h-0">
+            <div className="flex min-h-screen overflow-hidden">
+              <ScrollArea className="min-h-0 flex-1 min-w-0">
                 <article ref={readerScrollRef} className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-8 xl:px-8 xl:py-10">
                   {/* Back to search results */}
                   {query.trim() && searchResultPicked ? (
@@ -1037,8 +1037,8 @@ export function App() {
                 </article>
               </ScrollArea>
 
-              <ScrollArea className="min-w-0 w-full bg-transparent">
-                <aside className="flex w-full flex-col gap-4 overflow-hidden px-5 py-8 xl:px-5 xl:py-10">
+              <div className="w-[280px] shrink-0 overflow-x-hidden overflow-y-auto border-l bg-transparent">
+                <aside className="flex w-full min-w-0 flex-col gap-4 overflow-hidden px-5 py-8 xl:px-5 xl:py-10">
                   <Card className="w-full overflow-hidden border-0 bg-muted/35 shadow-none">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">On this page</CardTitle>
@@ -1173,7 +1173,7 @@ export function App() {
                     </CardContent>
                   </Card>
                 </aside>
-              </ScrollArea>
+              </div>
             </div>
           )}
         </main>
