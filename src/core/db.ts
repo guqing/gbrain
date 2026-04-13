@@ -426,12 +426,54 @@ export function migrateDb(db: Database): void {
       const allPages = db.query<PageRow2, []>(
         "SELECT id, title, compiled_truth, timeline FROM pages"
       ).all();
+
+      // Drop triggers first so UPDATE pages doesn't fire into a potentially
+      // corrupted or empty page_fts table.
+      db.exec(`
+        DROP TRIGGER IF EXISTS pages_au;
+        DROP TRIGGER IF EXISTS pages_ad;
+        DROP TRIGGER IF EXISTS pages_ai;
+        DROP TABLE IF EXISTS page_fts;
+
+        CREATE VIRTUAL TABLE page_fts USING fts5(
+          title,
+          compiled_truth,
+          timeline,
+          search_tokens,
+          content='pages',
+          content_rowid='id',
+          tokenize='porter unicode61'
+        );
+      `);
+
       const refill = db.prepare("UPDATE pages SET search_tokens = ? WHERE id = ?");
       for (const p of allPages) {
         const raw = [p.title, p.compiled_truth, p.timeline].join(" ");
         refill.run(buildSearchTokens(raw), p.id);
       }
+
+      // Rebuild FTS from the content table now that search_tokens is populated.
       db.exec(`INSERT INTO page_fts(page_fts) VALUES('rebuild')`);
+
+      // Recreate triggers for ongoing maintenance.
+      db.exec(`
+        CREATE TRIGGER pages_ai AFTER INSERT ON pages BEGIN
+          INSERT INTO page_fts(rowid, title, compiled_truth, timeline, search_tokens)
+          VALUES (new.id, new.title, new.compiled_truth, new.timeline, new.search_tokens);
+        END;
+
+        CREATE TRIGGER pages_ad AFTER DELETE ON pages BEGIN
+          INSERT INTO page_fts(page_fts, rowid, title, compiled_truth, timeline, search_tokens)
+          VALUES ('delete', old.id, old.title, old.compiled_truth, old.timeline, old.search_tokens);
+        END;
+
+        CREATE TRIGGER pages_au AFTER UPDATE ON pages BEGIN
+          INSERT INTO page_fts(page_fts, rowid, title, compiled_truth, timeline, search_tokens)
+          VALUES ('delete', old.id, old.title, old.compiled_truth, old.timeline, old.search_tokens);
+          INSERT INTO page_fts(rowid, title, compiled_truth, timeline, search_tokens)
+          VALUES (new.id, new.title, new.compiled_truth, new.timeline, new.search_tokens);
+        END;
+      `);
     }
   }
 
