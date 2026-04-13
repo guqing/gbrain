@@ -335,6 +335,8 @@ export function App() {
   const [copyState, setCopyState] = useState<"idle" | "done" | "error">("idle");
   const [activeHeading, setActiveHeading] = useState<string | null>(null);
   const [searchResultPicked, setSearchResultPicked] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     const onPopState = () => {
@@ -400,6 +402,7 @@ export function App() {
       setLoadingItems(true);
       setItemsError(null);
       setWarning(null);
+      setHasMore(false);
 
       try {
         if (query.trim()) {
@@ -435,7 +438,10 @@ export function App() {
         const response = await fetch(`/api/pages?${params.toString()}`, { signal: controller.signal });
         if (!response.ok) throw new Error(`Browse failed with HTTP ${response.status}`);
         const payload = (await response.json()) as CenterItem[];
-        if (!cancelled) setItems(payload);
+        if (!cancelled) {
+          setItems(payload);
+          setHasMore(payload.length === 50);
+        }
       } catch (error) {
         if (cancelled || controller.signal.aborted) return;
         setItems([]);
@@ -594,6 +600,23 @@ export function App() {
     setSelectedItemKey(item.slug);
     setSelectedReaderSlug(resolveReaderSlug(item));
     if (query.trim()) setSearchResultPicked(true);
+  };
+
+  const loadMore = async () => {
+    if (loadingMore || !hasMore || query.trim()) return;
+    setLoadingMore(true);
+    try {
+      const params = new URLSearchParams({ section, limit: "50", offset: String(items.length) });
+      const response = await fetch(`/api/pages?${params.toString()}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = (await response.json()) as CenterItem[];
+      setItems((prev) => [...prev, ...payload]);
+      setHasMore(payload.length === 50);
+    } catch {
+      // ignore; user can retry
+    } finally {
+      setLoadingMore(false);
+    }
   };
 
   const copyPage = async () => {
@@ -939,6 +962,14 @@ export function App() {
                         ))}
                       </CardContent>
                     </Card>
+                  ) : null}
+
+                  {!query.trim() && (hasMore || loadingMore) ? (
+                    <div className="flex justify-center">
+                      <Button disabled={loadingMore} onClick={loadMore} variant="outline">
+                        {loadingMore ? "Loading…" : "Load more"}
+                      </Button>
+                    </div>
                   ) : null}
 
                   {readerError ? (
