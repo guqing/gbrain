@@ -680,7 +680,7 @@ export function App() {
           <button
             key={node.id}
             className={cn(
-              "flex min-h-10 w-full overflow-hidden items-center gap-3 rounded-md px-2.5 text-left text-[15px] transition-colors",
+              "flex min-h-10 w-full items-start gap-3 rounded-md px-2.5 text-left text-[15px] transition-colors",
               active ? "bg-primary/[0.08] text-foreground" : "text-muted-foreground hover:bg-muted/55 hover:text-foreground"
             )}
             onClick={() => selectItem(node.item)}
@@ -688,11 +688,11 @@ export function App() {
             type="button"
           >
             {node.item.type === "file" ? (
-              <Paperclip className={cn("size-4 shrink-0", active ? "text-primary" : "text-muted-foreground")} />
+              <Paperclip className={cn("mt-[3px] size-4 shrink-0", active ? "text-primary" : "text-muted-foreground")} />
             ) : (
-              <FileText className={cn("size-4 shrink-0", active ? "text-primary" : "text-muted-foreground")} />
+              <FileText className={cn("mt-[3px] size-4 shrink-0", active ? "text-primary" : "text-muted-foreground")} />
             )}
-            <span className={cn("truncate", active ? "font-medium" : "")}>{node.label}</span>
+            <span className={cn("break-words min-w-0", active ? "font-medium" : "")}>{node.label}</span>
           </button>
         );
       }
@@ -704,7 +704,7 @@ export function App() {
         <div className="space-y-1" key={node.id}>
           <button
             className={cn(
-              "flex min-h-10 w-full overflow-hidden items-center gap-3 rounded-md px-2.5 text-left text-[15px] transition-colors",
+              "flex min-h-10 w-full items-start gap-3 rounded-md px-2.5 text-left text-[15px] transition-colors",
               inCurrentPath ? "bg-muted/65 text-foreground" : "text-muted-foreground hover:bg-muted/55 hover:text-foreground"
             )}
             onClick={() => setCollapsed((prev) => ({ ...prev, [node.id]: !isCollapsed }))}
@@ -712,11 +712,11 @@ export function App() {
             type="button"
           >
             {isCollapsed ? (
-              <Folder className="size-4 shrink-0 text-muted-foreground" />
+              <Folder className="mt-[3px] size-4 shrink-0 text-muted-foreground" />
             ) : (
-              <FolderOpen className="size-4 shrink-0 text-muted-foreground" />
+              <FolderOpen className="mt-[3px] size-4 shrink-0 text-muted-foreground" />
             )}
-            <span className="truncate font-medium">{node.label}</span>
+            <span className="break-words min-w-0 font-medium">{node.label}</span>
           </button>
           {!isCollapsed ? <div className="space-y-1">{renderTreeNodes(node.children, depth + 1)}</div> : null}
         </div>
