@@ -210,11 +210,30 @@ function extractHeadings(markdown: string): Heading[] {
   return headings;
 }
 
+function stripMarkdownSyntax(text: string): string {
+  return text
+    .replace(/^---[\s\S]*?---\n?/, "")  // frontmatter
+    .replace(/^#+\s+/gm, "")            // headings
+    .replace(/[*_`~]/g, "")             // emphasis/code
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // links
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, "")    // images
+    .replace(/^\s*[-*+]\s+/gm, "")      // list markers
+    .replace(/\n+/g, " ")
+    .trim();
+}
+
 function firstParagraph(markdown: string): string {
-  return markdown
+  const stripped = stripFrontmatter(markdown);
+  return stripped
     .split("\n\n")
-    .map((block) => block.replace(/^#+\s+/gm, "").trim())
-    .find((block) => block.length > 0) ?? "";
+    .map((block) =>
+      block
+        .replace(/^#+\s+/gm, "")
+        .replace(/[*_`~]/g, "")
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+        .trim()
+    )
+    .find((block) => block.length > 20) ?? "";
 }
 
 function stripFrontmatter(markdown: string): string {
@@ -553,7 +572,10 @@ export function App() {
   const renderedMarkdown = useMemo(() => (reader ? stripLeadingTitle(reader.markdown, reader.title) : ""), [reader]);
   const headings = useMemo(() => extractHeadings(renderedMarkdown), [renderedMarkdown]);
   const tree = useMemo(() => buildTree(items, section, query), [items, query, section]);
-  const summaryText = currentItem?.chunk_text ?? currentItem?.preview ?? (reader ? firstParagraph(renderedMarkdown) : "");
+  const summaryText = useMemo(() => {
+    const raw = currentItem?.chunk_text ?? currentItem?.preview ?? (reader ? firstParagraph(renderedMarkdown) : "");
+    return stripMarkdownSyntax(raw);
+  }, [currentItem, reader, renderedMarkdown]);
   const currentTreePath = useMemo(() => {
     if (!currentItem) return [];
     return treeSegmentsForItem(currentItem, section, query).slice(0, -1);
@@ -767,8 +789,8 @@ export function App() {
                         }}
                         type="button"
                       >
-                        <span className="font-medium">{sectionLabels[entry]}</span>
-                        <span className="text-xs text-muted-foreground">{summary?.collections[entry] ?? "—"}</span>
+                        <span className="min-w-0 truncate font-medium">{sectionLabels[entry]}</span>
+                        <span className="ml-2 shrink-0 text-xs text-muted-foreground">{summary?.collections[entry] ?? "—"}</span>
                       </button>
                     ))}
                   </div>
@@ -874,7 +896,7 @@ export function App() {
             </ScrollArea>
           ) : (
             /* ─── Browse / reader view ─── */
-            <div className="grid min-h-screen xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="grid min-h-screen xl:grid-cols-[minmax(0,1fr)_280px]">
               <ScrollArea className="min-h-0">
                 <article ref={readerScrollRef} className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-8 xl:px-8 xl:py-10">
                   {/* Back to search results */}
@@ -942,13 +964,6 @@ export function App() {
                   ) : null}
 
 
-                  {!query.trim() && (hasMore || loadingMore) ? (
-                    <div className="flex justify-center">
-                      <Button disabled={loadingMore} onClick={loadMore} variant="outline">
-                        {loadingMore ? "Loading…" : "Load more"}
-                      </Button>
-                    </div>
-                  ) : null}
 
                   {readerError ? (
                     <Card className="border-red-200 bg-red-50/80 text-red-950">
@@ -1022,8 +1037,8 @@ export function App() {
                 </article>
               </ScrollArea>
 
-              <ScrollArea className="bg-transparent">
-                <aside className="flex h-full flex-col gap-4 px-5 py-8 xl:px-5 xl:py-10">
+              <ScrollArea className="min-w-0 bg-transparent">
+                <aside className="flex h-full flex-col gap-4 overflow-hidden px-5 py-8 xl:px-5 xl:py-10">
                   <Card className="border-0 bg-muted/35 shadow-none">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">On this page</CardTitle>
