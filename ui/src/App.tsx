@@ -238,9 +238,14 @@ function firstParagraph(markdown: string): string {
 
 function stripFrontmatter(markdown: string): string {
   if (!markdown.startsWith("---")) return markdown;
-  const end = markdown.indexOf("\n---", 3);
-  if (end === -1) return markdown;
-  return markdown.slice(end + 4).replace(/^\n+/, "");
+  // Multi-line YAML: closing "---" on its own line
+  const newlineClose = markdown.indexOf("\n---", 3);
+  if (newlineClose !== -1) return markdown.slice(newlineClose + 4).replace(/^\n+/, "");
+  // Inline YAML: "--- key: val --- content"
+  const inlineClose = markdown.indexOf(" ---", 3);
+  if (inlineClose !== -1) return markdown.slice(inlineClose + 4).replace(/^\s+/, "");
+  // Truncated frontmatter (no closing delimiter) — return empty, no real content present
+  return "";
 }
 
 function stripLeadingTitle(markdown: string, title: string): string {
