@@ -6,10 +6,18 @@
   "bin": {
     "exo": "./bin/exo.ts"
   },
+  "workspaces": [
+    "ui"
+  ],
   "scripts": {
     "dev": "bun run src/cli.ts",
-    "build": "bun build --compile --minify src/cli.ts --outfile bin/exo",
-    "test": "bun test"
+    "ui:dev": "bun run scripts/ui-dev.ts",
+    "ui:dev:web": "bun run --cwd ui dev",
+    "ui:generate": "bun run scripts/generate-ui-assets.ts",
+    "ui:build": "bun run --cwd ui build && bun run ui:generate",
+    "build": "bun run ui:build && bun build --compile --minify src/cli.ts --outfile bin/exo",
+    "test": "bun test",
+    "pack:check": "npm pack --dry-run"
   },
   "files": [
     "bin/exo.ts",

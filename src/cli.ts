@@ -14,6 +14,7 @@ export const COMMAND_HELP: Record<string, string> = {
   list:      "Usage: exo list [--type T] [--tag T] [--limit N]\n\nList pages with optional filters.",
   search:    "Usage: exo search <query> [--type T] [--limit N]\n\nFTS5 keyword search.",
   query:     "Usage: exo query <question> [--no-expand] [--limit N] [--type T]\n\nHybrid search (FTS5 keyword + vector RRF). Optionally expands query with LLM synonyms (requires compile.api_key). Use --no-expand for exact-term search without LLM call. Falls back to FTS5-only if no embed key.",
+  ui:        "Usage: exo ui [--db <path>] [--port <number>] [--no-open]\n\nStart a localhost-only web UI for searching and browsing results.",
   link:      "Usage: exo link <from> <to> [--context <text>]\n\nCreate a typed link between two pages.",
   unlink:    "Usage: exo unlink <from> <to>\n\nRemove a link between two pages.",
   backlinks: "Usage: exo backlinks <slug>\n\nShow all pages that link to this page.",
@@ -66,6 +67,7 @@ const main = defineCommand({
     // Search
     search:      () => import("./commands/search.ts").then((m) => m.default),
     query:       () => import("./commands/query.ts").then((m) => m.default),
+    ui:          () => import("./commands/ui.ts").then((m) => m.default),
     // Links
     link:        () => import("./commands/link.ts").then((m) => m.default),
     unlink:      () => import("./commands/unlink.ts").then((m) => m.default),

@@ -9,6 +9,9 @@ export interface ExoConfig {
   db: {
     path?: string;
   };
+  ui: {
+    port: number;
+  };
   embed: {
     base_url?: string;
     api_key?: string;
@@ -35,6 +38,7 @@ export interface ExoConfig {
 // Allowed keys for `exo config set`
 export const CONFIG_KEYS = [
   "db.path",
+  "ui.port",
   "embed.base_url",
   "embed.api_key",
   "embed.model",
@@ -66,6 +70,9 @@ const DEFAULTS: ExoConfig = {
   db: {
     path: join(homedir(), ".exo", "brain.db"),
   },
+  ui: {
+    port: 7499,
+  },
   embed: {
     model: "text-embedding-3-small",
     dimensions: 1536,
@@ -91,6 +98,7 @@ function expandTilde(p: string): string {
 
 interface PartialConfig {
   db?: { path?: string };
+  ui?: { port?: number };
   embed?: { base_url?: string; api_key?: string; model?: string; dimensions?: number };
   compile?: { base_url?: string; api_key?: string; model?: string };
   vision?: { base_url?: string; api_key?: string; model?: string };
@@ -114,6 +122,14 @@ function readTomlFile(): PartialConfig {
       result.db = {};
       if (typeof db["path"] === "string") {
         result.db.path = expandTilde(db["path"]);
+      }
+    }
+
+    const ui = parsed["ui"] as Record<string, unknown> | undefined;
+    if (ui) {
+      result.ui = {};
+      if (typeof ui["port"] === "number") {
+        result.ui.port = ui["port"] as number;
       }
     }
 
@@ -168,6 +184,9 @@ export function loadConfig(overrides?: { db?: string }): ExoConfig {
         ?? process.env["EXO_DB"]
         ?? file.db?.path
         ?? DEFAULTS.db.path,
+    },
+    ui: {
+      port: file.ui?.port ?? DEFAULTS.ui.port,
     },
     embed: {
       base_url:   process.env["OPENAI_BASE_URL"]  ?? file.embed?.base_url  ?? DEFAULTS.embed.base_url,
@@ -228,6 +247,13 @@ export function listConfig(overrides?: { db?: string }): ConfigEntry[] {
     key: "db.path",
     value: dbVal,
     source: source(dbFlagVal, "EXO_DB", file.db?.path),
+  });
+
+  const uiPortVal = String(file.ui?.port ?? DEFAULTS.ui.port);
+  entries.push({
+    key: "ui.port",
+    value: uiPortVal,
+    source: file.ui?.port !== undefined ? "config" : "default",
   });
 
   // embed.base_url
@@ -318,12 +344,20 @@ export function setConfigKey(key: ConfigKey, value: string): void {
 
   // Read current raw file (if exists) into a plain object
   const cfgPath = getConfigPath();
-  let raw: Record<string, Record<string, string | number>> = { db: {}, embed: {}, compile: {}, vision: {}, transcription: {} };
+  let raw: Record<string, Record<string, string | number>> = {
+    db: {},
+    ui: {},
+    embed: {},
+    compile: {},
+    vision: {},
+    transcription: {},
+  };
 
   if (existsSync(cfgPath)) {
     try {
       const parsed = TOML.parse(readFileSync(cfgPath, "utf-8"), { bigint: false }) as Record<string, unknown>;
       if (parsed["db"]) raw["db"] = parsed["db"] as Record<string, string>;
+      if (parsed["ui"]) raw["ui"] = parsed["ui"] as Record<string, string | number>;
       if (parsed["embed"]) raw["embed"] = parsed["embed"] as Record<string, string | number>;
       if (parsed["compile"]) raw["compile"] = parsed["compile"] as Record<string, string | number>;
       if (parsed["vision"]) raw["vision"] = parsed["vision"] as Record<string, string | number>;
@@ -336,9 +370,9 @@ export function setConfigKey(key: ConfigKey, value: string): void {
   const [section, field] = key.split(".") as [string, string];
   if (!raw[section]) raw[section] = {};
 
-  if (key === "embed.dimensions") {
+  if (key === "embed.dimensions" || key === "ui.port") {
     const n = parseInt(value, 10);
-    if (isNaN(n) || n <= 0) throw new Error(`embed.dimensions must be a positive integer, got '${value}'`);
+    if (isNaN(n) || n <= 0) throw new Error(`${key} must be a positive integer, got '${value}'`);
     raw[section]![field] = n;
   } else {
     raw[section]![field] = value;

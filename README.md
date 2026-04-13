@@ -72,6 +72,9 @@ exo search "redis rate limit"
 # Hybrid search with AI query expansion (requires embed config)
 exo query "how to prevent API abuse"
 
+# Open the local Web UI
+exo ui
+
 # Read a page
 exo get concepts/redis-rate-limiting
 
@@ -102,6 +105,7 @@ exo setup-mcp
 |---------|-------------|
 | `exo search <query>` | FTS5 keyword search (`--type`, `--limit`) |
 | `exo query <question>` | Hybrid search: FTS5 + vector RRF + LLM query expansion |
+| `exo ui` | Localhost-only web UI for search and result browsing |
 
 ### AI Ingestion Pipeline
 
@@ -173,6 +177,9 @@ exo reads `~/.exo/config.toml`. Use `exo config` to view and `exo config set <ke
 [db]
 path = "~/.exo/brain.db"
 
+[ui]
+port = 7499
+
 [embed]
 base_url = "https://api.openai.com/v1"
 api_key  = "sk-..."
@@ -190,6 +197,7 @@ model    = "gpt-4o"
 ```
 
 Any OpenAI-compatible provider works (Vercel AI Gateway, Azure OpenAI, Ollama, etc.).
+`exo ui` binds to `127.0.0.1` only and opens `http://localhost:<port>` by default.
 
 ### DB path resolution
 
@@ -389,6 +397,8 @@ git clone https://github.com/guqing/exo
 cd exo
 bun install
 bun run dev                    # run from source: bun src/cli.ts
+bun run ui:dev -- --db ~/path/to/brain.db
+# API on 7499, Vite UI on 5173, /api proxied automatically
 bun test ./src/tests/          # run test suite
 bun run build                  # compile to single binary → bin/exo
 ```
