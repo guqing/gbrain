@@ -217,13 +217,21 @@ function firstParagraph(markdown: string): string {
     .find((block) => block.length > 0) ?? "";
 }
 
+function stripFrontmatter(markdown: string): string {
+  if (!markdown.startsWith("---")) return markdown;
+  const end = markdown.indexOf("\n---", 3);
+  if (end === -1) return markdown;
+  return markdown.slice(end + 4).replace(/^\n+/, "");
+}
+
 function stripLeadingTitle(markdown: string, title: string): string {
-  const lines = markdown.split("\n");
+  const stripped = stripFrontmatter(markdown);
+  const lines = stripped.split("\n");
   const firstLine = lines[0]?.trim();
   if (firstLine === `# ${title}`) {
     return lines.slice(1).join("\n").replace(/^\n+/, "");
   }
-  return markdown;
+  return stripped;
 }
 
 function highlightTerms(text: string, query: string): React.ReactNode {
@@ -535,7 +543,13 @@ export function App() {
     [items, selectedItemKey, selectedReaderSlug]
   );
 
-  const contentItems = useMemo(() => items.filter((item) => item.slug !== currentItem?.slug), [items, currentItem]);
+  const prevNextItems = useMemo(() => {
+    if (!currentItem) return { prev: null, next: null };
+    const idx = items.findIndex((i) => i.slug === currentItem.slug);
+    return { prev: idx > 0 ? items[idx - 1] : null, next: idx < items.length - 1 ? items[idx + 1] : null };
+  }, [items, currentItem]);
+
+
   const renderedMarkdown = useMemo(() => (reader ? stripLeadingTitle(reader.markdown, reader.title) : ""), [reader]);
   const headings = useMemo(() => extractHeadings(renderedMarkdown), [renderedMarkdown]);
   const tree = useMemo(() => buildTree(items, section, query), [items, query, section]);
@@ -654,7 +668,7 @@ export function App() {
         );
       }
 
-      const isCollapsed = collapsed[node.id] ?? false;
+      const isCollapsed = collapsed[node.id] ?? true;
       const inCurrentPath = currentTreePath.join("/").startsWith(node.id);
 
       return (
@@ -927,42 +941,6 @@ export function App() {
                     </Card>
                   ) : null}
 
-                  {!itemsError && !loadingItems && contentItems.length > 0 ? (
-                    <Card className="overflow-hidden border-dashed bg-background/80">
-                      <CardHeader className="pb-4">
-                        <CardTitle>{`More in ${sectionLabels[section]}`}</CardTitle>
-                        <CardDescription>{`All pages in ${sectionLabels[section]}.`}</CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-0 p-0">
-                        {contentItems.map((item, index) => (
-                          <button
-                            key={`${item.slug}:${item.score ?? ""}`}
-                            className={cn(
-                              "flex w-full flex-col gap-3 px-5 py-4 text-left transition-colors hover:bg-muted/60",
-                              index > 0 ? "border-t" : ""
-                            )}
-                            onClick={() => selectItem(item)}
-                            type="button"
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Badge variant="muted">{item.type}</Badge>
-                                {item.has_files ? <Badge variant="outline">attachments</Badge> : null}
-                                {item.mime_type ? <Badge variant="outline">{item.mime_type}</Badge> : null}
-                              </div>
-                              <span className="text-xs text-muted-foreground">
-                                {item.updated_at ? formatUpdatedAt(item.updated_at) : "page"}
-                              </span>
-                            </div>
-                            <div className="space-y-2">
-                              <div className="text-base font-semibold">{item.title}</div>
-                              <p className="line-clamp-3 text-sm leading-6 text-muted-foreground">{item.chunk_text ?? item.preview}</p>
-                            </div>
-                          </button>
-                        ))}
-                      </CardContent>
-                    </Card>
-                  ) : null}
 
                   {!query.trim() && (hasMore || loadingMore) ? (
                     <div className="flex justify-center">
@@ -1015,6 +993,30 @@ export function App() {
                           {renderedMarkdown}
                         </ReactMarkdown>
                       </div>
+                      {(prevNextItems.prev || prevNextItems.next) && (
+                        <div className="flex items-stretch justify-between gap-4 border-t pt-6">
+                          {prevNextItems.prev ? (
+                            <button
+                              className="flex flex-1 flex-col gap-1 rounded-xl border bg-background/80 px-4 py-3 text-left transition-colors hover:bg-muted/60"
+                              onClick={() => selectItem(prevNextItems.prev!)}
+                              type="button"
+                            >
+                              <span className="text-xs text-muted-foreground">← Previous</span>
+                              <span className="line-clamp-2 text-sm font-medium">{prevNextItems.prev.title}</span>
+                            </button>
+                          ) : <div className="flex-1" />}
+                          {prevNextItems.next ? (
+                            <button
+                              className="flex flex-1 flex-col gap-1 rounded-xl border bg-background/80 px-4 py-3 text-right transition-colors hover:bg-muted/60"
+                              onClick={() => selectItem(prevNextItems.next!)}
+                              type="button"
+                            >
+                              <span className="text-xs text-muted-foreground">Next →</span>
+                              <span className="line-clamp-2 text-sm font-medium">{prevNextItems.next.title}</span>
+                            </button>
+                          ) : <div className="flex-1" />}
+                        </div>
+                      )}
                     </div>
                   ) : null}
                 </article>
