@@ -12,7 +12,7 @@ export default defineConfig({
   },
   server: {
     host: "127.0.0.1",
-    port: 5173,
+    port: 3002,
     proxy: {
       "/api": {
         target: process.env["EXO_UI_API_ORIGIN"] ?? "http://127.0.0.1:7499",

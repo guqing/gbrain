@@ -1,8 +1,9 @@
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import React, { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowUpRight,
   BrainCircuit,
+  ChevronLeft,
   Copy,
   Database,
   FileText,
@@ -225,6 +226,26 @@ function stripLeadingTitle(markdown: string, title: string): string {
   return markdown;
 }
 
+function highlightTerms(text: string, query: string): React.ReactNode {
+  const terms = query
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  if (terms.length === 0) return text;
+  const pattern = new RegExp(`(${terms.join("|")})`, "gi");
+  const parts = text.split(pattern);
+  return parts.map((part, i) =>
+    pattern.test(part) ? (
+      <mark className="rounded bg-yellow-200 px-0.5 text-yellow-900" key={i}>
+        {part}
+      </mark>
+    ) : (
+      part
+    )
+  );
+}
+
 function nodeText(node: ReactNode): string {
   if (typeof node === "string" || typeof node === "number") return String(node);
   if (Array.isArray(node)) return node.map(nodeText).join("");
@@ -313,6 +334,7 @@ export function App() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [copyState, setCopyState] = useState<"idle" | "done" | "error">("idle");
   const [activeHeading, setActiveHeading] = useState<string | null>(null);
+  const [searchResultPicked, setSearchResultPicked] = useState(false);
 
   useEffect(() => {
     const onPopState = () => {
@@ -431,7 +453,19 @@ export function App() {
     };
   }, [query, searchScope, section]);
 
+  // When query changes, clear selection so the results list shows (not auto-reader)
   useEffect(() => {
+    if (query.trim()) {
+      setSelectedItemKey(null);
+      setSelectedReaderSlug(null);
+      setSearchResultPicked(false);
+    }
+  }, [query, searchScope]);
+
+  useEffect(() => {
+    // In search mode: only auto-select when the user has already picked a result
+    if (query.trim() && !searchResultPicked) return;
+
     if (items.length === 0) {
       setSelectedItemKey(null);
       setSelectedReaderSlug(null);
@@ -445,7 +479,7 @@ export function App() {
 
     if (selectedItemKey !== next.slug) setSelectedItemKey(next.slug);
     if (selectedReaderSlug !== nextReaderSlug) setSelectedReaderSlug(nextReaderSlug);
-  }, [items, selectedItemKey, selectedReaderSlug]);
+  }, [items, selectedItemKey, selectedReaderSlug, query, searchResultPicked]);
 
   useEffect(() => {
     if (!selectedReaderSlug) {
@@ -559,6 +593,7 @@ export function App() {
   const selectItem = (item: CenterItem) => {
     setSelectedItemKey(item.slug);
     setSelectedReaderSlug(resolveReaderSlug(item));
+    if (query.trim()) setSearchResultPicked(true);
   };
 
   const copyPage = async () => {
@@ -719,298 +754,380 @@ export function App() {
         </aside>
 
         <main className="min-w-0">
-          <div className="grid min-h-screen xl:grid-cols-[minmax(0,1fr)_320px]">
-            <ScrollArea className="min-h-0">
-              <article ref={readerScrollRef} className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-8 xl:px-8 xl:py-10">
-                {warning ? (
-                  <Card className="max-w-xl border-amber-200 bg-amber-50/80 text-amber-950 shadow-none">
-                    <CardContent className="flex items-start gap-3 p-4">
-                      <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                      <p className="text-sm leading-6">{warning}</p>
-                    </CardContent>
-                  </Card>
-                ) : null}
-
-                <div className="flex flex-col gap-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge>{reader?.metadata.type ?? currentItem?.type ?? "Reader"}</Badge>
-                      {currentItem?.result_kind === "file" ? <Badge variant="outline">opened from file hit</Badge> : null}
-                      {currentItem?.has_files ? <Badge variant="secondary">has attachments</Badge> : null}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button onClick={copyPage} size="sm" variant="outline">
-                        <Copy className="size-4" />
-                        {copyState === "done" ? "Copied" : copyState === "error" ? "Clipboard blocked" : "Copy markdown"}
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <h2 className="text-4xl font-semibold tracking-tight xl:text-5xl">
-                      {reader?.title ?? currentItem?.title ?? "Select a page"}
-                    </h2>
-                    {summaryText ? <p className="max-w-3xl text-base leading-8 text-muted-foreground">{summaryText}</p> : null}
-                  </div>
+          {/* ─── Search results view ─── */}
+          {query.trim() && !searchResultPicked ? (
+            <ScrollArea className="min-h-screen">
+              <div className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-5 py-8 xl:px-8 xl:py-10">
+                {/* Header */}
+                <div className="mb-4 flex flex-wrap items-baseline gap-3">
+                  <h2 className="text-2xl font-semibold tracking-tight">
+                    {loadingItems ? "Searching…" : `${items.length} result${items.length === 1 ? "" : "s"} for`}{" "}
+                    {!loadingItems && <span className="text-primary">"{query}"</span>}
+                  </h2>
+                  {warning ? (
+                    <span className="flex items-center gap-1.5 text-xs text-amber-600">
+                      <AlertTriangle className="size-3.5" />
+                      {warning}
+                    </span>
+                  ) : null}
                 </div>
 
-                {itemsError ? (
+                {/* Loading skeletons */}
+                {loadingItems ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3, 4].map((n) => (
+                      <div className="space-y-2 rounded-xl border bg-background/70 p-5" key={n}>
+                        <Skeleton className="h-5 w-1/3" />
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-4/5" />
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {/* Error */}
+                {!loadingItems && itemsError ? (
                   <Card className="border-red-200 bg-red-50/80 text-red-950">
                     <CardContent className="p-5 text-sm leading-6">{itemsError}</CardContent>
                   </Card>
                 ) : null}
 
-                {!itemsError && loadingItems ? (
-                  <Card className="border-dashed bg-background/80">
-                    <CardContent className="space-y-3 p-5">
-                      <Skeleton className="h-5 w-40" />
-                      <Skeleton className="h-20 w-full" />
-                      <Skeleton className="h-20 w-full" />
-                    </CardContent>
-                  </Card>
-                ) : null}
-
-                {!itemsError && !loadingItems && items.length === 0 ? (
-                  <Card className="border-dashed bg-background/80">
-                    <CardHeader>
-                      <CardTitle>{query.trim() ? "No matching results" : "Nothing in this section yet"}</CardTitle>
-                      <CardDescription>
-                        {query.trim()
-                          ? "Try a narrower query, or switch the scope above."
-                          : sectionEmptyHints[section]}
-                      </CardDescription>
-                    </CardHeader>
-                  </Card>
-                ) : null}
-
-                {!itemsError && !loadingItems && contentItems.length > 0 ? (
-                  <Card className="overflow-hidden border-dashed bg-background/80">
-                    <CardHeader className="pb-4">
-                      <CardTitle>{query.trim() ? `More results for "${query}"` : `More in ${sectionLabels[section]}`}</CardTitle>
-                      <CardDescription>
-                        {query.trim()
-                          ? "Click any result to open it in the reader above."
-                          : `All pages in ${sectionLabels[section]}.`}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-0 p-0">
-                      {contentItems.map((item, index) => (
-                        <button
-                          key={`${item.slug}:${item.score ?? ""}`}
-                          className={cn(
-                            "flex w-full flex-col gap-3 px-5 py-4 text-left transition-colors hover:bg-muted/60",
-                            index > 0 ? "border-t" : ""
-                          )}
-                          onClick={() => selectItem(item)}
-                          type="button"
-                        >
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Badge variant="muted">{item.type}</Badge>
-                              {item.has_files ? <Badge variant="outline">attachments</Badge> : null}
-                              {item.mime_type ? <Badge variant="outline">{item.mime_type}</Badge> : null}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                              {item.updated_at ? <span>{formatUpdatedAt(item.updated_at)}</span> : <span>{item.result_kind === "file" ? "file hit" : "page"}</span>}
-                              {item.score !== undefined ? <span>score {item.score.toFixed(3)}</span> : null}
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <div className="text-base font-semibold">{item.title}</div>
-                            <p className="line-clamp-3 text-sm leading-6 text-muted-foreground">{item.chunk_text ?? item.preview}</p>
-                          </div>
-                        </button>
-                      ))}
-                    </CardContent>
-                  </Card>
-                ) : null}
-
-                {readerError ? (
-                  <Card className="border-red-200 bg-red-50/80 text-red-950">
-                    <CardContent className="p-5 text-sm leading-6">{readerError}</CardContent>
-                  </Card>
-                ) : null}
-
-                {!readerError && loadingReader ? (
-                  <Card className="border-dashed bg-background/80">
-                    <CardContent className="space-y-4 p-5">
-                      <Skeleton className="h-6 w-44" />
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-4 w-[90%]" />
-                      <Skeleton className="h-4 w-[82%]" />
-                    </CardContent>
-                  </Card>
-                ) : null}
-
-                {!readerError && !loadingReader && !reader ? (
-                  <Card className="border-dashed bg-background/80">
-                    <CardHeader>
-                      <CardTitle>Pick a page to start reading</CardTitle>
-                      <CardDescription>
-                        Select a page from the directory tree on the left.
-                      </CardDescription>
-                    </CardHeader>
-                  </Card>
-                ) : null}
-
-                {reader ? (
-                  <div className="space-y-6">
-                    <Separator />
-                    <div className="app-markdown">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          h1: ({ children }) => <h1 id={slugify(nodeText(children))}>{children}</h1>,
-                          h2: ({ children }) => <h2 id={slugify(nodeText(children))}>{children}</h2>,
-                          h3: ({ children }) => <h3 id={slugify(nodeText(children))}>{children}</h3>,
-                        }}
-                      >
-                        {renderedMarkdown}
-                      </ReactMarkdown>
-                    </div>
+                {/* Empty */}
+                {!loadingItems && !itemsError && items.length === 0 ? (
+                  <div className="rounded-xl border border-dashed bg-background/80 px-6 py-12 text-center">
+                    <p className="text-base font-medium">No results for "{query}"</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Try different words, or switch the scope filter above.
+                    </p>
                   </div>
                 ) : null}
-              </article>
-            </ScrollArea>
 
-            <ScrollArea className="bg-transparent">
-              <aside className="flex h-full flex-col gap-4 px-5 py-8 xl:px-5 xl:py-10">
-                <Card className="border-0 bg-muted/35 shadow-none">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base">On this page</CardTitle>
-                    <CardDescription>Jump through the current markdown structure.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    {headings.length === 0 ? (
-                      <p className="text-sm leading-6 text-muted-foreground">No headings yet.</p>
-                    ) : (
-                      headings.map((heading) => (
-                        <a
-                          className={cn(
-                            "block rounded-lg px-3 py-2 text-sm transition-colors",
-                            activeHeading === heading.id ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                          )}
-                          href={`#${heading.id}`}
-                          key={heading.id}
-                          style={{ paddingLeft: `${heading.level * 10}px` }}
-                        >
-                          {heading.text}
-                        </a>
-                      ))
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card className="border-0 bg-muted/35 shadow-none">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Page details</CardTitle>
-                    <CardDescription>Metadata, provenance, and attached files.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {reader ? (
-                      <>
-                        <div className="space-y-3 text-sm">
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-muted-foreground">Updated</span>
-                            <span className="font-medium">{formatUpdatedAt(reader.metadata.updated_at)}</span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-muted-foreground">Confidence</span>
-                            <span className="font-medium">{reader.metadata.confidence ?? "—"}</span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-muted-foreground">Last verified</span>
-                            <span className="font-medium">{reader.metadata.last_verified ?? "—"}</span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-muted-foreground">Sources</span>
-                            <span className="font-medium">{reader.metadata.source_count ?? 0}</span>
-                          </div>
+                {/* Results */}
+                {!loadingItems &&
+                  !itemsError &&
+                  items.map((item) => (
+                    <button
+                      key={`${item.slug}:${item.score ?? ""}`}
+                      className="group flex w-full flex-col gap-3 rounded-xl border bg-background px-5 py-4 text-left transition-all hover:border-primary/40 hover:bg-primary/[0.03] hover:shadow-sm"
+                      onClick={() => selectItem(item)}
+                      type="button"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="muted">{item.result_kind === "file" ? "file" : item.type}</Badge>
+                          {item.has_files ? <Badge variant="outline">attachments</Badge> : null}
+                          {item.mime_type ? <Badge variant="outline">{item.mime_type}</Badge> : null}
                         </div>
-
-                        {reader.metadata.tags?.length ? (
-                          <div className="flex flex-wrap gap-2">
-                            {reader.metadata.tags.map((tag) => (
-                              <Badge key={tag} variant="secondary">
-                                {tag}
-                              </Badge>
-                            ))}
-                          </div>
-                        ) : null}
-
-                        {reader.files.length ? (
-                          <div className="space-y-3">
-                            <Separator />
-                            {reader.files.map((file) => (
-                              <div className="space-y-2" key={file.slug}>
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <div className="truncate text-sm font-medium">{file.name}</div>
-                                    <div className="text-xs text-muted-foreground">{file.mime_type}</div>
-                                  </div>
-                                  <div className="shrink-0 text-xs text-muted-foreground">{formatSize(file.size_bytes)}</div>
-                                </div>
-                                <a
-                                  className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full justify-between")}
-                                  href={file.download_url}
-                                  rel="noreferrer"
-                                  target="_blank"
-                                >
-                                  Open attachment
-                                  <ArrowUpRight className="size-4" />
-                                </a>
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
-                      </>
-                    ) : (
-                      <p className="text-sm leading-6 text-muted-foreground">Open a page to see metadata and attachments.</p>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card className="border-0 bg-muted/35 shadow-none">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Related</CardTitle>
-                    <CardDescription>Follow outgoing links and backlinks from the current page.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    {reader?.related.length ? (
-                      reader.related.map((item) => (
-                        <button
-                          className="flex w-full items-start justify-between gap-3 rounded-xl border bg-background px-3 py-3 text-left transition-colors hover:bg-muted"
-                          key={item.slug}
-                          onClick={() => {
-                            setSection(sectionForPageType(item.type));
-                            setQuery("");
-                            setSelectedItemKey(item.slug);
-                            setSelectedReaderSlug(item.slug);
-                          }}
-                          type="button"
-                        >
-                          <div className="min-w-0 space-y-1">
-                            <div className="truncate text-sm font-medium">{item.title}</div>
-                            <div className="truncate text-xs text-muted-foreground">{item.slug}</div>
-                          </div>
-                          <Badge variant="outline">{item.type}</Badge>
-                        </button>
-                      ))
-                    ) : (
-                      <p className="text-sm leading-6 text-muted-foreground">No linked pages yet.</p>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card className="border-0 bg-transparent shadow-none">
-                  <CardContent className="flex items-start gap-3 p-5 text-sm leading-6 text-muted-foreground">
-                    <Database className="mt-0.5 size-4 shrink-0 text-primary" />
-                    The UI stays local. Bun serves the browser shell and the `/api/*` endpoints from the same process.
-                  </CardContent>
-                </Card>
-              </aside>
+                        <span className="text-xs text-muted-foreground">
+                          {item.updated_at ? formatUpdatedAt(item.updated_at) : item.result_kind === "file" ? "file" : "page"}
+                        </span>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-base font-semibold group-hover:text-primary">
+                          {highlightTerms(item.title, query)}
+                        </div>
+                        <p className="line-clamp-3 text-sm leading-6 text-muted-foreground">
+                          {highlightTerms(item.chunk_text ?? item.preview ?? "", query)}
+                        </p>
+                      </div>
+                      <div className="truncate text-xs text-muted-foreground/60">{item.slug}</div>
+                    </button>
+                  ))}
+              </div>
             </ScrollArea>
-          </div>
+          ) : (
+            /* ─── Browse / reader view ─── */
+            <div className="grid min-h-screen xl:grid-cols-[minmax(0,1fr)_320px]">
+              <ScrollArea className="min-h-0">
+                <article ref={readerScrollRef} className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-8 xl:px-8 xl:py-10">
+                  {/* Back to search results */}
+                  {query.trim() && searchResultPicked ? (
+                    <button
+                      className="flex w-fit items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      onClick={() => {
+                        setSearchResultPicked(false);
+                        setSelectedItemKey(null);
+                        setSelectedReaderSlug(null);
+                      }}
+                      type="button"
+                    >
+                      <ChevronLeft className="size-4" />
+                      Search results for "{query}"
+                    </button>
+                  ) : null}
+
+                  <div className="flex flex-col gap-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge>{reader?.metadata.type ?? currentItem?.type ?? "Reader"}</Badge>
+                        {currentItem?.result_kind === "file" ? <Badge variant="outline">opened from file hit</Badge> : null}
+                        {currentItem?.has_files ? <Badge variant="secondary">has attachments</Badge> : null}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button onClick={copyPage} size="sm" variant="outline">
+                          <Copy className="size-4" />
+                          {copyState === "done" ? "Copied" : copyState === "error" ? "Clipboard blocked" : "Copy markdown"}
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <h2 className="text-4xl font-semibold tracking-tight xl:text-5xl">
+                        {reader?.title ?? currentItem?.title ?? "Select a page"}
+                      </h2>
+                      {summaryText ? <p className="max-w-3xl text-base leading-8 text-muted-foreground">{summaryText}</p> : null}
+                    </div>
+                  </div>
+
+                  {itemsError ? (
+                    <Card className="border-red-200 bg-red-50/80 text-red-950">
+                      <CardContent className="p-5 text-sm leading-6">{itemsError}</CardContent>
+                    </Card>
+                  ) : null}
+
+                  {!itemsError && loadingItems ? (
+                    <Card className="border-dashed bg-background/80">
+                      <CardContent className="space-y-3 p-5">
+                        <Skeleton className="h-5 w-40" />
+                        <Skeleton className="h-20 w-full" />
+                        <Skeleton className="h-20 w-full" />
+                      </CardContent>
+                    </Card>
+                  ) : null}
+
+                  {!itemsError && !loadingItems && items.length === 0 ? (
+                    <Card className="border-dashed bg-background/80">
+                      <CardHeader>
+                        <CardTitle>Nothing in this section yet</CardTitle>
+                        <CardDescription>{sectionEmptyHints[section]}</CardDescription>
+                      </CardHeader>
+                    </Card>
+                  ) : null}
+
+                  {!itemsError && !loadingItems && contentItems.length > 0 ? (
+                    <Card className="overflow-hidden border-dashed bg-background/80">
+                      <CardHeader className="pb-4">
+                        <CardTitle>{`More in ${sectionLabels[section]}`}</CardTitle>
+                        <CardDescription>{`All pages in ${sectionLabels[section]}.`}</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-0 p-0">
+                        {contentItems.map((item, index) => (
+                          <button
+                            key={`${item.slug}:${item.score ?? ""}`}
+                            className={cn(
+                              "flex w-full flex-col gap-3 px-5 py-4 text-left transition-colors hover:bg-muted/60",
+                              index > 0 ? "border-t" : ""
+                            )}
+                            onClick={() => selectItem(item)}
+                            type="button"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge variant="muted">{item.type}</Badge>
+                                {item.has_files ? <Badge variant="outline">attachments</Badge> : null}
+                                {item.mime_type ? <Badge variant="outline">{item.mime_type}</Badge> : null}
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                {item.updated_at ? formatUpdatedAt(item.updated_at) : "page"}
+                              </span>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="text-base font-semibold">{item.title}</div>
+                              <p className="line-clamp-3 text-sm leading-6 text-muted-foreground">{item.chunk_text ?? item.preview}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  ) : null}
+
+                  {readerError ? (
+                    <Card className="border-red-200 bg-red-50/80 text-red-950">
+                      <CardContent className="p-5 text-sm leading-6">{readerError}</CardContent>
+                    </Card>
+                  ) : null}
+
+                  {!readerError && loadingReader ? (
+                    <Card className="border-dashed bg-background/80">
+                      <CardContent className="space-y-4 p-5">
+                        <Skeleton className="h-6 w-44" />
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-[90%]" />
+                        <Skeleton className="h-4 w-[82%]" />
+                      </CardContent>
+                    </Card>
+                  ) : null}
+
+                  {!readerError && !loadingReader && !reader ? (
+                    <Card className="border-dashed bg-background/80">
+                      <CardHeader>
+                        <CardTitle>Pick a page to start reading</CardTitle>
+                        <CardDescription>
+                          Select a page from the directory tree on the left.
+                        </CardDescription>
+                      </CardHeader>
+                    </Card>
+                  ) : null}
+
+                  {reader ? (
+                    <div className="space-y-6">
+                      <Separator />
+                      <div className="app-markdown">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            h1: ({ children }) => <h1 id={slugify(nodeText(children))}>{children}</h1>,
+                            h2: ({ children }) => <h2 id={slugify(nodeText(children))}>{children}</h2>,
+                            h3: ({ children }) => <h3 id={slugify(nodeText(children))}>{children}</h3>,
+                          }}
+                        >
+                          {renderedMarkdown}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+                  ) : null}
+                </article>
+              </ScrollArea>
+
+              <ScrollArea className="bg-transparent">
+                <aside className="flex h-full flex-col gap-4 px-5 py-8 xl:px-5 xl:py-10">
+                  <Card className="border-0 bg-muted/35 shadow-none">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">On this page</CardTitle>
+                      <CardDescription>Jump through the current markdown structure.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {headings.length === 0 ? (
+                        <p className="text-sm leading-6 text-muted-foreground">No headings yet.</p>
+                      ) : (
+                        headings.map((heading) => (
+                          <a
+                            className={cn(
+                              "block rounded-lg px-3 py-2 text-sm transition-colors",
+                              activeHeading === heading.id ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                            )}
+                            href={`#${heading.id}`}
+                            key={heading.id}
+                            style={{ paddingLeft: `${heading.level * 10}px` }}
+                          >
+                            {heading.text}
+                          </a>
+                        ))
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-0 bg-muted/35 shadow-none">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Page details</CardTitle>
+                      <CardDescription>Metadata, provenance, and attached files.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {reader ? (
+                        <>
+                          <div className="space-y-3 text-sm">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-muted-foreground">Updated</span>
+                              <span className="font-medium">{formatUpdatedAt(reader.metadata.updated_at)}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-muted-foreground">Confidence</span>
+                              <span className="font-medium">{reader.metadata.confidence ?? "—"}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-muted-foreground">Last verified</span>
+                              <span className="font-medium">{reader.metadata.last_verified ?? "—"}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-muted-foreground">Sources</span>
+                              <span className="font-medium">{reader.metadata.source_count ?? 0}</span>
+                            </div>
+                          </div>
+
+                          {reader.metadata.tags?.length ? (
+                            <div className="flex flex-wrap gap-2">
+                              {reader.metadata.tags.map((tag) => (
+                                <Badge key={tag} variant="secondary">
+                                  {tag}
+                                </Badge>
+                              ))}
+                            </div>
+                          ) : null}
+
+                          {reader.files.length ? (
+                            <div className="space-y-3">
+                              <Separator />
+                              {reader.files.map((file) => (
+                                <div className="space-y-2" key={file.slug}>
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <div className="truncate text-sm font-medium">{file.name}</div>
+                                      <div className="text-xs text-muted-foreground">{file.mime_type}</div>
+                                    </div>
+                                    <div className="shrink-0 text-xs text-muted-foreground">{formatSize(file.size_bytes)}</div>
+                                  </div>
+                                  <a
+                                    className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full justify-between")}
+                                    href={file.download_url}
+                                    rel="noreferrer"
+                                    target="_blank"
+                                  >
+                                    Open attachment
+                                    <ArrowUpRight className="size-4" />
+                                  </a>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                        </>
+                      ) : (
+                        <p className="text-sm leading-6 text-muted-foreground">Open a page to see metadata and attachments.</p>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-0 bg-muted/35 shadow-none">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Related</CardTitle>
+                      <CardDescription>Follow outgoing links and backlinks from the current page.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {reader?.related.length ? (
+                        reader.related.map((item) => (
+                          <button
+                            className="flex w-full items-start justify-between gap-3 rounded-xl border bg-background px-3 py-3 text-left transition-colors hover:bg-muted"
+                            key={item.slug}
+                            onClick={() => {
+                              setSection(sectionForPageType(item.type));
+                              setQuery("");
+                              setSelectedItemKey(item.slug);
+                              setSelectedReaderSlug(item.slug);
+                            }}
+                            type="button"
+                          >
+                            <div className="min-w-0 space-y-1">
+                              <div className="truncate text-sm font-medium">{item.title}</div>
+                              <div className="truncate text-xs text-muted-foreground">{item.slug}</div>
+                            </div>
+                            <Badge variant="outline">{item.type}</Badge>
+                          </button>
+                        ))
+                      ) : (
+                        <p className="text-sm leading-6 text-muted-foreground">No linked pages yet.</p>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-0 bg-transparent shadow-none">
+                    <CardContent className="flex items-start gap-3 p-5 text-sm leading-6 text-muted-foreground">
+                      <Database className="mt-0.5 size-4 shrink-0 text-primary" />
+                      The UI stays local. Bun serves the browser shell and the `/api/*` endpoints from the same process.
+                    </CardContent>
+                  </Card>
+                </aside>
+              </ScrollArea>
+            </div>
+          )}
         </main>
       </div>
     </div>
