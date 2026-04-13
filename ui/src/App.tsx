@@ -770,8 +770,8 @@ export function App() {
               ) : null}
             </div>
 
-            <ScrollArea className="flex-1 px-4 pb-6">
-              <div className="space-y-6 pb-2">
+            <ScrollArea className="flex-1 pb-6">
+              <div className="space-y-6 px-4 pb-2">
                 <div className="space-y-3">
                   <div className="px-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Browse</div>
                   <div className="space-y-1">
@@ -779,7 +779,7 @@ export function App() {
                       <button
                         key={entry}
                         className={cn(
-                          "flex min-h-11 w-full items-center justify-between rounded-xl px-3 text-left transition-colors",
+                          "flex min-h-11 w-full items-center justify-between gap-2 overflow-hidden rounded-xl px-3 text-left transition-colors",
                           entry === section ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
                         )}
                         onClick={() => {
@@ -790,7 +790,7 @@ export function App() {
                         type="button"
                       >
                         <span className="min-w-0 truncate font-medium">{sectionLabels[entry]}</span>
-                        <span className="ml-2 shrink-0 text-xs text-muted-foreground">{summary?.collections[entry] ?? "—"}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">{summary?.collections[entry] ?? "—"}</span>
                       </button>
                     ))}
                   </div>
@@ -799,11 +799,11 @@ export function App() {
                 <Separator />
 
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between px-2">
-                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                  <div className="flex min-w-0 items-center justify-between gap-2 overflow-hidden px-2">
+                    <div className="shrink-0 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                       {query.trim() ? "Matching paths" : "Directory structure"}
                     </div>
-                    <Badge variant="muted">{query.trim() ? searchScopeLabels[searchScope] : sectionLabels[section]}</Badge>
+                    <Badge className="max-w-[120px] truncate" variant="muted">{query.trim() ? searchScopeLabels[searchScope] : sectionLabels[section]}</Badge>
                   </div>
                   <div className="space-y-1">{renderTreeNodes(tree)}</div>
                 </div>
