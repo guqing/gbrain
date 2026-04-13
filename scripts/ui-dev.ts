@@ -8,7 +8,7 @@ function parseArgs(argv: string[]) {
     noOpen: boolean;
   } = {
     apiPort: 7499,
-    uiPort: 5173,
+    uiPort: 3002,
     noOpen: false,
   };
 
