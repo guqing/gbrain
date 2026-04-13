@@ -770,8 +770,8 @@ export function App() {
               ) : null}
             </div>
 
-            <ScrollArea className="flex-1 pb-6">
-              <div className="space-y-6 px-4 pb-2">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden pb-6">
+              <div className="w-full overflow-x-hidden space-y-6 px-4 pb-2">
                 <div className="space-y-3">
                   <div className="px-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Browse</div>
                   <div className="space-y-1">
@@ -808,7 +808,7 @@ export function App() {
                   <div className="space-y-1">{renderTreeNodes(tree)}</div>
                 </div>
               </div>
-            </ScrollArea>
+            </div>
           </div>
         </aside>
 
