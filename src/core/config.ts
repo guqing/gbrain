@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { homedir } from "os";
-import { join } from "path";
+import { dirname, isAbsolute, join, resolve } from "path";
 import TOML from "@ltd/j-toml";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -85,13 +85,26 @@ const DEFAULTS: ExoConfig = {
   },
 };
 
-// ── Tilde expansion ───────────────────────────────────────────────────────────
+// ── Tilde expansion + config-relative resolution ─────────────────────────────
 
 function expandTilde(p: string): string {
   if (p.startsWith("~/") || p === "~") {
     return p.replace("~", homedir());
   }
   return p;
+}
+
+/**
+ * Resolve a path from config.toml.
+ * - `~` prefixes expand to $HOME
+ * - Absolute paths are kept as-is
+ * - Relative paths are resolved relative to the config file's directory
+ *   (i.e. ~/.exo/), NOT the process cwd
+ */
+function resolveConfigPath(p: string): string {
+  const expanded = expandTilde(p);
+  if (isAbsolute(expanded)) return expanded;
+  return resolve(dirname(getConfigPath()), expanded);
 }
 
 // ── Internal partial type for file parsing ────────────────────────────────────
@@ -121,7 +134,7 @@ function readTomlFile(): PartialConfig {
     if (db) {
       result.db = {};
       if (typeof db["path"] === "string") {
-        result.db.path = expandTilde(db["path"]);
+        result.db.path = resolveConfigPath(db["path"]);
       }
     }
 
