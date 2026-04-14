@@ -339,7 +339,7 @@ export default defineCommand({
   args: {
     db: { type: "string", description: "Path to brain.db" },
     port: { type: "string", description: "Port (default: ui.port or 7499)" },
-    "no-open": { type: "boolean", description: "Don't open browser automatically", default: false },
+    open: { type: "boolean", description: "Open browser automatically (use --no-open to disable)", default: true },
   },
   async run({ args }) {
     const cfg = loadConfig(args.db ? { db: args.db } : undefined);
@@ -391,7 +391,7 @@ export default defineCommand({
     console.log(`exo UI -> ${publicUrl}`);
     console.log(`Bound to 127.0.0.1 only. Use SSH tunneling if you need remote access.`);
 
-    if (!args["no-open"]) {
+    if (args.open) {
       const command = openCommand(publicUrl);
       if (command) {
         try {
