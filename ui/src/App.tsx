@@ -1063,155 +1063,136 @@ export function App() {
                 </article>
               </ScrollArea>
 
-              <div className="w-[280px] shrink-0 overflow-x-hidden overflow-y-auto bg-transparent">
-                <aside className="flex w-full min-w-0 flex-col gap-4 overflow-hidden px-5 py-8 xl:px-5 xl:py-10">
-                  <Card className="w-full overflow-hidden border-0 bg-muted/35 shadow-none">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">On this page</CardTitle>
-                      <CardDescription className="break-words">Jump through the current markdown structure.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      {headings.length === 0 ? (
-                        <p className="text-sm leading-6 text-muted-foreground">No headings yet.</p>
-                      ) : (
-                        headings.map((heading) => (
-                          <a
-                            className={cn(
-                              "block rounded-lg px-3 py-2 text-sm transition-colors",
-                              activeHeading === heading.id ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                            )}
-                            href={`#${heading.id}`}
-                            key={heading.id}
-                            style={{ paddingLeft: `${heading.level * 10}px` }}
-                          >
-                            {heading.text}
-                          </a>
-                        ))
-                      )}
-                    </CardContent>
-                  </Card>
+              <div className="hidden xl:flex self-start sticky flex-col shrink-0 w-[272px] z-10 h-[calc(100vh-5rem)] top-20">
+                <div className="max-h-full overflow-y-auto pl-8 pr-4">
+                  <div className="space-y-6 pb-10 text-sm leading-6">
 
-                  <Card className="w-full overflow-hidden border-0 bg-muted/35 shadow-none">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Page details</CardTitle>
-                      <CardDescription className="break-words">Metadata, provenance, and attached files.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {reader ? (
-                        <>
-                          <div className="space-y-3 text-sm">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="shrink-0 text-muted-foreground">Updated</span>
-                              <span className="truncate font-medium text-right">{formatUpdatedAt(reader.metadata.updated_at)}</span>
-                            </div>
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-muted-foreground">Confidence</span>
-                              <span className="font-medium">{reader.metadata.confidence ?? "—"}</span>
-                            </div>
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-muted-foreground">Last verified</span>
-                              <span className="font-medium">{reader.metadata.last_verified ?? "—"}</span>
-                            </div>
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-muted-foreground">Sources</span>
-                              <span className="font-medium">{reader.metadata.source_count ?? 0}</span>
-                            </div>
+                    {/* On this page */}
+                    {headings.length > 0 ? (
+                      <div>
+                        <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">
+                          On this page
+                        </div>
+                        <div className="space-y-0.5">
+                          {headings.map((heading) => (
+                            <a
+                              key={heading.id}
+                              href={`#${heading.id}`}
+                              className={cn(
+                                "block border-l-2 py-1 text-sm leading-6 transition-colors",
+                                activeHeading === heading.id
+                                  ? "border-primary font-medium text-primary"
+                                  : "border-transparent text-muted-foreground hover:border-border hover:text-foreground"
+                              )}
+                              style={{ paddingLeft: `${0.625 + (heading.level - 1) * 0.75}rem` }}
+                            >
+                              {heading.text}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {/* Page details */}
+                    {reader ? (
+                      <div>
+                        <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">
+                          Details
+                        </div>
+                        <div className="space-y-2 text-sm text-muted-foreground">
+                          <div className="flex justify-between gap-2">
+                            <span>Updated</span>
+                            <span className="font-medium text-foreground">{formatUpdatedAt(reader.metadata.updated_at)}</span>
                           </div>
-
-                          {reader.metadata.tags?.length ? (
-                            <div className="flex flex-wrap gap-2">
-                              {reader.metadata.tags.map((tag) => (
-                                <Badge key={tag} variant="secondary">
-                                  {tag}
-                                </Badge>
-                              ))}
+                          {reader.metadata.confidence ? (
+                            <div className="flex justify-between gap-2">
+                              <span>Confidence</span>
+                              <span className="font-medium text-foreground">{reader.metadata.confidence}</span>
                             </div>
                           ) : null}
-
-                          {reader.metadata.keywords?.length ? (
-                            <div className="space-y-1.5">
-                              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Keywords</div>
-                              <div className="flex flex-wrap gap-1.5">
-                                {reader.metadata.keywords.map((kw) => (
-                                  <Badge key={kw} variant="outline" className="text-xs">
-                                    {kw}
-                                  </Badge>
-                                ))}
-                              </div>
+                          {reader.metadata.last_verified ? (
+                            <div className="flex justify-between gap-2">
+                              <span>Verified</span>
+                              <span className="font-medium text-foreground">{reader.metadata.last_verified}</span>
                             </div>
                           ) : null}
+                          <div className="flex justify-between gap-2">
+                            <span>Sources</span>
+                            <span className="font-medium text-foreground">{reader.metadata.source_count ?? 0}</span>
+                          </div>
+                        </div>
 
-                          {reader.files.length ? (
-                            <div className="space-y-3">
-                              <Separator />
-                              {reader.files.map((file) => (
-                                <div className="space-y-2" key={file.slug}>
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div className="min-w-0">
-                                      <div className="truncate text-sm font-medium">{file.name}</div>
-                                      <div className="text-xs text-muted-foreground">{file.mime_type}</div>
-                                    </div>
-                                    <div className="shrink-0 text-xs text-muted-foreground">{formatSize(file.size_bytes)}</div>
-                                  </div>
-                                  <a
-                                    className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full justify-between")}
-                                    href={file.download_url}
-                                    rel="noreferrer"
-                                    target="_blank"
-                                  >
-                                    Open attachment
-                                    <ArrowUpRight className="size-4" />
-                                  </a>
-                                </div>
-                              ))}
+                        {reader.metadata.tags?.length ? (
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {reader.metadata.tags.map((tag) => (
+                              <Badge key={tag} variant="secondary">{tag}</Badge>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        {reader.metadata.keywords?.length ? (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {reader.metadata.keywords.map((kw) => (
+                              <Badge key={kw} variant="outline" className="text-xs">{kw}</Badge>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        {reader.files.length ? (
+                          <div className="mt-4 space-y-0.5">
+                            <div className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">
+                              Attachments
                             </div>
-                          ) : null}
-                        </>
-                      ) : (
-                        <p className="text-sm leading-6 text-muted-foreground">Open a page to see metadata and attachments.</p>
-                      )}
-                    </CardContent>
-                  </Card>
+                            {reader.files.map((file) => (
+                              <a
+                                key={file.slug}
+                                className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                href={file.download_url}
+                                rel="noreferrer"
+                                target="_blank"
+                              >
+                                <span className="truncate">{file.name}</span>
+                                <ArrowUpRight className="size-3.5 shrink-0" />
+                              </a>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
 
-                  <Card className="w-full overflow-hidden border-0 bg-muted/35 shadow-none">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Related</CardTitle>
-                      <CardDescription className="break-words">Follow outgoing links and backlinks from the current page.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      {reader?.related.length ? (
-                        reader.related.map((item) => (
-                          <button
-                            className="flex w-full items-start justify-between gap-3 rounded-xl border bg-background px-3 py-3 text-left transition-colors hover:bg-muted"
-                            key={item.slug}
-                            onClick={() => {
-                              setSection(sectionForPageType(item.type));
-                              setQuery("");
-                              setSelectedItemKey(item.slug);
-                              setSelectedReaderSlug(item.slug);
-                            }}
-                            type="button"
-                          >
-                            <div className="min-w-0 space-y-1">
-                              <div className="truncate text-sm font-medium">{item.title}</div>
-                              <div className="truncate text-xs text-muted-foreground">{item.slug}</div>
-                            </div>
-                            <Badge variant="outline">{item.type}</Badge>
-                          </button>
-                        ))
-                      ) : (
-                        <p className="text-sm leading-6 text-muted-foreground">No linked pages yet.</p>
-                      )}
-                    </CardContent>
-                  </Card>
+                    {/* Related */}
+                    {reader?.related.length ? (
+                      <div>
+                        <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">
+                          Related
+                        </div>
+                        <div className="space-y-0.5">
+                          {reader.related.map((item) => (
+                            <button
+                              key={item.slug}
+                              className="block w-full rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                              onClick={() => {
+                                setSection(sectionForPageType(item.type));
+                                setQuery("");
+                                setSelectedItemKey(item.slug);
+                                setSelectedReaderSlug(item.slug);
+                              }}
+                              type="button"
+                            >
+                              <div className="truncate font-medium text-foreground">{item.title}</div>
+                              <div className="truncate text-xs opacity-60">{item.slug}</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
 
-                  <Card className="border-0 bg-transparent shadow-none">
-                    <CardContent className="flex items-start gap-3 p-5 text-sm leading-6 text-muted-foreground">
-                      <Database className="mt-0.5 size-4 shrink-0 text-primary" />
-                      The UI stays local. Bun serves the browser shell and the `/api/*` endpoints from the same process.
-                    </CardContent>
-                  </Card>
-                </aside>
+                    <div className="flex items-start gap-2 text-xs text-muted-foreground/50">
+                      <Database className="mt-0.5 size-3.5 shrink-0 text-primary/50" />
+                      <span>Local-only. Served from Bun process.</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
