@@ -653,6 +653,14 @@ export function App() {
     setSelectedItemKey(item.slug);
     setSelectedReaderSlug(resolveReaderSlug(item));
     if (query.trim()) setSearchResultPicked(true);
+    // For image files in gallery mode: open lightbox + scroll card into view
+    if ((item.type === "file" || item.result_kind === "file") && item.mime_type?.startsWith("image/")) {
+      const fileSlug = item.slug.replace("file:", "");
+      setLightbox({ src: `/api/file/${encodeURIComponent(fileSlug)}/raw`, alt: item.title });
+      setTimeout(() => {
+        document.getElementById(`gc-${item.slug}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 50);
+    }
   };
 
   const loadMore = async () => {
@@ -1004,10 +1012,20 @@ export function App() {
                                   const isImage = file.mime_type?.startsWith("image/");
                                   return (
                                     <button
+                                      id={`gc-${file.slug}`}
                                       key={file.slug}
-                                      className="group overflow-hidden rounded-xl border border-border bg-muted/30 text-left transition-colors hover:border-primary/40"
+                                      className={cn(
+                                        "group overflow-hidden rounded-xl border text-left transition-all hover:border-primary/40",
+                                        file.slug === selectedItemKey
+                                          ? "border-primary bg-primary/5 ring-2 ring-primary/20 ring-offset-1"
+                                          : "border-border bg-muted/30"
+                                      )}
                                       type="button"
-                                      onClick={() => isImage ? setLightbox({ src, alt: file.title }) : window.open(src, "_blank")}
+                                      onClick={() => {
+                                        setSelectedItemKey(file.slug);
+                                        if (isImage) setLightbox({ src, alt: file.title });
+                                        else window.open(src, "_blank");
+                                      }}
                                     >
                                       {isImage ? (
                                         <img
