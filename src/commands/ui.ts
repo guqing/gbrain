@@ -167,8 +167,12 @@ export default defineCommand({
           if (section === "file") {
             const files = engine.listFiles().slice(offset, offset + limit).map((file) => {
               const parent = db
-                .query<{ page_slug: string | null }, [string]>(
-                  "SELECT page_slug FROM page_files WHERE file_slug = ? ORDER BY display_order LIMIT 1"
+                .query<{ page_slug: string | null; page_title: string | null }, [string]>(
+                  `SELECT pf.page_slug, p.title as page_title
+                   FROM page_files pf
+                   LEFT JOIN pages p ON p.slug = pf.page_slug
+                   WHERE pf.file_slug = ?
+                   ORDER BY pf.display_order LIMIT 1`
                 )
                 .get(file.slug);
 
@@ -180,6 +184,7 @@ export default defineCommand({
                 has_files: false,
                 preview: previewText(file.description ?? file.original_name ?? file.slug),
                 parent_page_slug: parent?.page_slug ?? null,
+                parent_page_title: parent?.page_title ?? null,
                 mime_type: file.mime_type,
               };
             });

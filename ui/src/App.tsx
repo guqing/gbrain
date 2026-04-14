@@ -36,6 +36,7 @@ type CenterItem = {
   chunk_text?: string;
   result_kind?: "page" | "file";
   parent_page_slug?: string | null;
+  parent_page_title?: string | null;
   mime_type?: string;
 };
 
@@ -296,12 +297,10 @@ function prettifySegment(segment: string): string {
 
 function treeSegmentsForItem(item: CenterItem, section: Section, query: string): string[] {
   if (item.type === "file") {
-    if (item.parent_page_slug) {
-      // Group under the last segment of the parent page slug (the page title part)
-      const segments = item.parent_page_slug.split("/").filter(Boolean);
-      const parentLabel = prettifySegment(segments[segments.length - 1] ?? item.parent_page_slug);
-      return [parentLabel, item.title];
-    }
+    const parentLabel = item.parent_page_title ?? (item.parent_page_slug
+      ? prettifySegment(item.parent_page_slug.split("/").filter(Boolean).pop() ?? item.parent_page_slug)
+      : null);
+    if (parentLabel) return [parentLabel, item.title];
     return [item.title];
   }
 
@@ -941,7 +940,114 @@ export function App() {
           ) : (
             /* ─── Browse / reader view ─── */
             <div className="flex min-h-0">
-              <div ref={readerScrollRef} className="flex-1 min-w-0">
+              {section === "file" && !query.trim() ? (
+                /* ─── Files gallery ─── */
+                <div className="flex-1 min-w-0 overflow-y-auto">
+                  <div className="mx-auto w-full max-w-5xl px-5 py-8 xl:px-8 xl:py-10">
+                    <div className="mb-6 flex items-center justify-between">
+                      <h2 className="text-2xl font-semibold tracking-tight">Files</h2>
+                      <span className="text-sm text-muted-foreground">{summary?.collections.file ?? items.length} files</span>
+                    </div>
+
+                    {loadingItems ? (
+                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                        {[1,2,3,4,5,6,7,8].map((n) => (
+                          <div key={n} className="overflow-hidden rounded-xl border bg-muted/30">
+                            <Skeleton className="h-40 w-full rounded-none" />
+                            <div className="p-2"><Skeleton className="h-3 w-3/4" /></div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : items.length === 0 ? (
+                      <Card className="border-dashed bg-background/80">
+                        <CardHeader>
+                          <CardTitle>No files yet</CardTitle>
+                          <CardDescription>{sectionEmptyHints.file}</CardDescription>
+                        </CardHeader>
+                      </Card>
+                    ) : (() => {
+                      // Group by parent page title
+                      const groups = new Map<string, { title: string; slug: string | null; items: CenterItem[] }>();
+                      for (const item of items) {
+                        const key = item.parent_page_slug ?? "__unattached__";
+                        const label = item.parent_page_title ?? item.parent_page_slug ?? "Unattached files";
+                        if (!groups.has(key)) groups.set(key, { title: label, slug: item.parent_page_slug ?? null, items: [] });
+                        groups.get(key)!.items.push(item);
+                      }
+                      return (
+                        <div className="space-y-10">
+                          {[...groups.values()].map((group) => (
+                            <div key={group.slug ?? "__unattached__"}>
+                              <div className="mb-4 flex items-center gap-2">
+                                <h3 className="text-base font-semibold text-foreground">{group.title}</h3>
+                                {group.slug && (
+                                  <button
+                                    className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                    type="button"
+                                    onClick={() => {
+                                      setSection(sectionForPageType("session"));
+                                      setQuery("");
+                                      setSelectedItemKey(group.slug!);
+                                      setSelectedReaderSlug(group.slug!);
+                                    }}
+                                  >
+                                    <ArrowUpRight className="size-3" />
+                                    View page
+                                  </button>
+                                )}
+                              </div>
+                              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                                {group.items.map((file) => {
+                                  const fileSlug = file.slug.replace("file:", "");
+                                  const src = `/api/file/${encodeURIComponent(fileSlug)}/raw`;
+                                  const isImage = file.mime_type?.startsWith("image/");
+                                  return (
+                                    <button
+                                      key={file.slug}
+                                      className="group overflow-hidden rounded-xl border border-border bg-muted/30 text-left transition-colors hover:border-primary/40"
+                                      type="button"
+                                      onClick={() => isImage ? setLightbox({ src, alt: file.title }) : window.open(src, "_blank")}
+                                    >
+                                      {isImage ? (
+                                        <img
+                                          alt={file.title}
+                                          className="h-40 w-full object-cover transition-transform group-hover:scale-[1.02]"
+                                          loading="lazy"
+                                          src={src}
+                                        />
+                                      ) : (
+                                        <div className="flex h-40 items-center justify-center bg-muted/50">
+                                          <Database className="size-10 text-muted-foreground/40" />
+                                        </div>
+                                      )}
+                                      <div className="p-2">
+                                        <div className="truncate text-xs font-medium text-foreground">{file.title}</div>
+                                        {file.mime_type && <div className="truncate text-[11px] text-muted-foreground">{file.mime_type}</div>}
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                          {hasMore && (
+                            <button
+                              className="w-full rounded-xl border border-dashed py-3 text-sm text-muted-foreground transition-colors hover:bg-muted/50 disabled:opacity-50"
+                              disabled={loadingMore}
+                              type="button"
+                              onClick={loadMore}
+                            >
+                              {loadingMore ? "Loading…" : "Load more"}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div ref={readerScrollRef} className="flex-1 min-w-0">
                 <article className="w-full lg:max-w-[696px] lg:mx-auto xl:ml-[max(0px,calc(50vw-348px-18rem))] flex flex-col gap-6 px-5 py-8 xl:px-0 xl:py-10">
                   {/* Back to search results */}
                   {query.trim() && searchResultPicked ? (
@@ -1277,6 +1383,8 @@ export function App() {
                   </div>
                 </div>
               </div>
+            </>
+              )}
             </div>
           )}
         </main>
