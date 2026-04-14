@@ -73,8 +73,13 @@ const uiUrl = `http://127.0.0.1:${args.uiPort}`;
 // ── If the UI port is already occupied, reuse the running session ─────────────
 if (await isPortListening(args.uiPort)) {
   console.log(`exo ui dev — already running`);
-  console.log(`  Web: ${uiUrl}  (reusing existing session)`);
-  if (!args.noOpen) tryOpen(uiUrl);
+  console.log(`  Web: ${uiUrl}`);
+  // Signal the existing tab to call window.focus() via Vite's HMR WebSocket.
+  // The app listens for 'exo:focus' in main.tsx (import.meta.hot.on).
+  // No new tab is opened.
+  if (!args.noOpen) {
+    await fetch(`${uiUrl}/__exo_ping`, { method: "POST" }).catch(() => {});
+  }
   process.exit(0);
 }
 

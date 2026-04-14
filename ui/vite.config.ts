@@ -4,7 +4,22 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
-  plugins: [tailwindcss(), react()],
+  plugins: [
+    tailwindcss(),
+    react(),
+    {
+      // Dev-only: expose POST /__exo_ping so ui-dev.ts can signal the
+      // already-open tab to call window.focus() via Vite's HMR WebSocket.
+      name: "exo-focus-ping",
+      configureServer(server) {
+        server.middlewares.use("/__exo_ping", (req, res, next) => {
+          if (req.method !== "POST") { next(); return; }
+          server.ws.send({ type: "custom", event: "exo:focus" });
+          res.writeHead(200, { "content-type": "text/plain" }).end("ok");
+        });
+      },
+    },
+  ],
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
