@@ -4,12 +4,9 @@ import {
   ArrowUpRight,
   BrainCircuit,
   ChevronLeft,
+  ChevronRight,
   Copy,
   Database,
-  FileText,
-  Folder,
-  FolderOpen,
-  Paperclip,
   Search,
   X,
 } from "lucide-react";
@@ -674,56 +671,59 @@ export function App() {
     }
   };
 
-  const renderTreeNodes = (nodes: TreeNode[], depth = 0) =>
-    nodes.map((node) => {
-      if (node.kind === "leaf") {
-        const active = node.item.slug === selectedItemKey || resolveReaderSlug(node.item) === selectedReaderSlug;
+  const renderTreeNodes = (nodes: TreeNode[], depth = 0): React.ReactElement => (
+    <ul className="space-y-px">
+      {nodes.map((node) => {
+        if (node.kind === "leaf") {
+          const active = node.item.slug === selectedItemKey || resolveReaderSlug(node.item) === selectedReaderSlug;
+          return (
+            <li key={node.id} className="relative scroll-m-4 first:scroll-m-20">
+              <button
+                className={cn(
+                  "group flex w-full cursor-pointer items-start gap-x-2.5 break-words hyphens-auto rounded-xl py-1.5 pr-3 text-left text-[14px] outline-offset-[-1px] transition-colors",
+                  active
+                    ? "bg-primary/10 text-primary [text-shadow:-0.2px_0_0_currentColor,0.2px_0_0_currentColor]"
+                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                )}
+                onClick={() => selectItem(node.item)}
+                style={{ paddingLeft: `${depth * 16 + 16}px` }}
+                type="button"
+              >
+                <span className="min-w-0 max-w-full break-words [word-break:break-word]">{node.label}</span>
+              </button>
+            </li>
+          );
+        }
+
+        const isCollapsed = collapsed[node.id] ?? true;
+        const inCurrentPath = currentTreePath.join("/").startsWith(node.id);
+
         return (
-          <button
-            key={node.id}
-            className={cn(
-              "flex min-h-10 w-full items-start gap-3 rounded-md px-2.5 text-left text-[15px] transition-colors",
-              active ? "bg-primary/[0.08] text-foreground" : "text-muted-foreground hover:bg-muted/55 hover:text-foreground"
-            )}
-            onClick={() => selectItem(node.item)}
-            style={{ paddingLeft: `${depth * 20 + 10}px` }}
-            type="button"
-          >
-            {node.item.type === "file" ? (
-              <Paperclip className={cn("mt-[3px] size-4 shrink-0", active ? "text-primary" : "text-muted-foreground")} />
-            ) : (
-              <FileText className={cn("mt-[3px] size-4 shrink-0", active ? "text-primary" : "text-muted-foreground")} />
-            )}
-            <span className={cn("break-words min-w-0", active ? "font-medium" : "")}>{node.label}</span>
-          </button>
+          <li key={node.id} className="relative scroll-m-4">
+            <button
+              className={cn(
+                "group flex w-full cursor-pointer items-start gap-x-2.5 break-words hyphens-auto rounded-xl py-1.5 pr-3 text-left text-[14px] font-medium outline-offset-[-1px] transition-colors",
+                inCurrentPath
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+              )}
+              onClick={() => setCollapsed((prev) => ({ ...prev, [node.id]: !isCollapsed }))}
+              style={{ paddingLeft: `${depth * 16 + 16}px` }}
+              type="button"
+            >
+              {isCollapsed ? (
+                <ChevronRight className="mt-[3px] size-3.5 shrink-0 opacity-50 transition-transform" />
+              ) : (
+                <ChevronRight className="mt-[3px] size-3.5 shrink-0 rotate-90 opacity-50 transition-transform" />
+              )}
+              <span className="min-w-0 max-w-full break-words [word-break:break-word]">{node.label}</span>
+            </button>
+            {!isCollapsed ? renderTreeNodes(node.children, depth + 1) : null}
+          </li>
         );
-      }
-
-      const isCollapsed = collapsed[node.id] ?? true;
-      const inCurrentPath = currentTreePath.join("/").startsWith(node.id);
-
-      return (
-        <div className="space-y-1" key={node.id}>
-          <button
-            className={cn(
-              "flex min-h-10 w-full items-start gap-3 rounded-md px-2.5 text-left text-[15px] transition-colors",
-              inCurrentPath ? "bg-muted/65 text-foreground" : "text-muted-foreground hover:bg-muted/55 hover:text-foreground"
-            )}
-            onClick={() => setCollapsed((prev) => ({ ...prev, [node.id]: !isCollapsed }))}
-            style={{ paddingLeft: `${depth * 20 + 10}px` }}
-            type="button"
-          >
-            {isCollapsed ? (
-              <Folder className="mt-[3px] size-4 shrink-0 text-muted-foreground" />
-            ) : (
-              <FolderOpen className="mt-[3px] size-4 shrink-0 text-muted-foreground" />
-            )}
-            <span className="break-words min-w-0 font-medium">{node.label}</span>
-          </button>
-          {!isCollapsed ? <div className="space-y-1">{renderTreeNodes(node.children, depth + 1)}</div> : null}
-        </div>
-      );
-    });
+      })}
+    </ul>
+  );
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -779,7 +779,7 @@ export function App() {
                     </div>
                     <Badge className="max-w-[120px] truncate" variant="muted">{query.trim() ? searchScopeLabels[searchScope] : sectionLabels[section]}</Badge>
                   </div>
-                  <div className="space-y-1">{renderTreeNodes(tree)}</div>
+                <nav className="space-y-1">{renderTreeNodes(tree)}</nav>
                 </div>
               </div>
             </div>
