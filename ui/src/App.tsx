@@ -353,7 +353,7 @@ function buildTree(items: CenterItem[], section: Section, query: string): TreeNo
 export function App() {
   const initialParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const readerScrollRef = useRef<HTMLElement>(null);
+  const readerScrollRef = useRef<HTMLDivElement>(null);
   const [section, setSection] = useState<Section>(parseSection(initialParams.get("section")));
   const [query, setQuery] = useState(initialParams.get("q") ?? "");
   const [searchScope, setSearchScope] = useState<SearchScope>(parseSearchScope(initialParams.get("scope")));
@@ -611,9 +611,7 @@ export function App() {
   }, [copyState]);
 
   useEffect(() => {
-    if (!readerScrollRef.current) return;
-    const viewport = readerScrollRef.current.closest("[data-radix-scroll-area-viewport]") as HTMLElement | null;
-    if (viewport) viewport.scrollTop = 0;
+    if (readerScrollRef.current) readerScrollRef.current.scrollTop = 0;
   }, [selectedReaderSlug]);
 
   useEffect(() => {
@@ -636,7 +634,7 @@ export function App() {
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
         if (visible[0]?.target.id) setActiveHeading(visible[0].target.id);
       },
-      { rootMargin: "-20% 0px -65% 0px", threshold: [0, 1] }
+      { root: readerScrollRef.current, rootMargin: "-10% 0px -60% 0px", threshold: [0, 1] }
     );
 
     elements.forEach((element) => observer.observe(element));
@@ -922,9 +920,9 @@ export function App() {
             </div>
           ) : (
             /* ─── Browse / reader view ─── */
-            <div className="flex min-h-screen overflow-hidden">
-              <ScrollArea className="min-h-0 flex-1 min-w-0">
-                <article ref={readerScrollRef} className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-8 xl:px-8 xl:py-10">
+            <div className="flex h-[calc(100vh-5rem)] overflow-hidden">
+              <div ref={readerScrollRef} className="flex-1 overflow-y-auto min-w-0">
+                <article className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-8 xl:px-8 xl:py-10">
                   {/* Back to search results */}
                   {query.trim() && searchResultPicked ? (
                     <button
@@ -1061,10 +1059,10 @@ export function App() {
                     </div>
                   ) : null}
                 </article>
-              </ScrollArea>
+              </div>
 
-              <div className="hidden xl:flex self-start sticky flex-col shrink-0 w-[272px] z-10 h-[calc(100vh-5rem)] top-20">
-                <div className="max-h-full overflow-y-auto pl-8 pr-4">
+              <div className="hidden xl:flex flex-col shrink-0 w-[272px] overflow-y-auto border-l border-border/50">
+                <div className="pl-8 pr-4 py-8">
                   <div className="space-y-6 pb-10 text-sm leading-6">
 
                     {/* On this page */}
