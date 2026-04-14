@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-binaries:
+    name: Build & publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: |
+          bun install --frozen-lockfile
+          bun install --frozen-lockfile --cwd ui
+
+      - name: Build UI
+        run: bun run ui:build
+
+      - name: Build cross-platform binaries
+        run: |
+          mkdir -p dist
+          bun build --compile --minify --target=bun-linux-x64    src/cli.ts --outfile dist/exo-linux-x64
+          bun build --compile --minify --target=bun-linux-arm64  src/cli.ts --outfile dist/exo-linux-arm64
+          bun build --compile --minify --target=bun-darwin-x64   src/cli.ts --outfile dist/exo-darwin-x64
+          bun build --compile --minify --target=bun-darwin-arm64 src/cli.ts --outfile dist/exo-darwin-arm64
+          bun build --compile --minify --target=bun-windows-x64  src/cli.ts --outfile dist/exo-windows-x64.exe
+          ls -lh dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/exo-linux-x64
+            dist/exo-linux-arm64
+            dist/exo-darwin-x64
+            dist/exo-darwin-arm64
+            dist/exo-windows-x64.exe
+
+      - name: Publish to npm
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

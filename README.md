@@ -75,6 +75,9 @@ exo query "how to prevent API abuse"
 # Read a page
 exo get concepts/redis-rate-limiting
 
+# Open the local Web UI
+exo ui
+
 # Wire up to Claude Code / Cursor (one-time)
 exo setup-mcp
 ```
@@ -102,6 +105,12 @@ exo setup-mcp
 |---------|-------------|
 | `exo search <query>` | FTS5 keyword search (`--type`, `--limit`) |
 | `exo query <question>` | Hybrid search: FTS5 + vector RRF + LLM query expansion |
+
+### Web UI
+
+| Command | Description |
+|---------|-------------|
+| `exo ui` | Start the local web UI (`--port`, `--no-open`) |
 
 ### AI Ingestion Pipeline
 
@@ -187,6 +196,9 @@ model    = "gpt-4o"
 base_url = "https://api.openai.com/v1"
 api_key  = "sk-..."
 model    = "gpt-4o"
+
+[ui]
+port = 7499
 ```
 
 Any OpenAI-compatible provider works (Vercel AI Gateway, Azure OpenAI, Ollama, etc.).
@@ -389,6 +401,8 @@ git clone https://github.com/guqing/exo
 cd exo
 bun install
 bun run dev                    # run from source: bun src/cli.ts
+bun run ui:dev -- --db ~/path/to/brain.db
+# API on 7499, Vite UI on 5173, /api proxied automatically
 bun test ./src/tests/          # run test suite
 bun run build                  # compile to single binary → bin/exo
 ```

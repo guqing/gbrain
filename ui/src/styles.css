@@ -1,0 +1,206 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --background: oklch(0.99 0 0);
+  --foreground: oklch(0.37 0.03 259.73);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.37 0.03 259.73);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.37 0.03 259.73);
+  --primary: oklch(0.7 0.15 153.55);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.97 0 286.38);
+  --secondary-foreground: oklch(0.3763 0.004 196.99);
+  --muted: oklch(0.97 0 264.54);
+  --muted-foreground: oklch(0.55 0.02 264.36);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.64 0.21 25.33);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.93 0.01 264.53);
+  --input: oklch(0.93 0.01 264.53);
+  --ring: oklch(0.72 0.19 149.58);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.4 0.02 264);
+  --sidebar-muted: oklch(0.55 0.02 264.36);
+  --radius: 0.625rem;
+}
+
+@theme inline {
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+  }
+
+  button,
+  input {
+    font: inherit;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--primary) 18%, white);
+  }
+}
+
+@layer components {
+  .app-markdown {
+    @apply text-[15px] leading-8 text-foreground;
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+
+  .app-markdown h1,
+  .app-markdown h2,
+  .app-markdown h3 {
+    @apply scroll-mt-24 tracking-tight;
+  }
+
+  .app-markdown h1 {
+    @apply mb-3 mt-10 text-3xl font-semibold;
+  }
+
+  .app-markdown h2 {
+    @apply mb-3 mt-10 text-2xl font-semibold;
+  }
+
+  .app-markdown h3 {
+    @apply mb-2 mt-8 text-xl font-semibold;
+  }
+
+  .app-markdown p,
+  .app-markdown ul,
+  .app-markdown ol,
+  .app-markdown blockquote,
+  .app-markdown pre {
+    @apply mb-5;
+  }
+
+  .app-markdown ul,
+  .app-markdown ol {
+    @apply pl-6;
+  }
+
+  .app-markdown li + li {
+    @apply mt-2;
+  }
+
+  .app-markdown blockquote {
+    @apply border-l-2 border-border pl-4 text-muted-foreground;
+  }
+
+  .app-markdown code {
+    @apply rounded-md bg-muted px-1.5 py-0.5 font-mono text-[0.92em];
+  }
+
+  .app-markdown pre {
+    @apply overflow-x-auto rounded-xl border bg-muted/60 p-4 text-sm leading-6;
+  }
+
+  .app-markdown pre code {
+    @apply bg-transparent p-0;
+  }
+
+  .app-markdown a {
+    @apply text-primary underline underline-offset-4;
+    text-decoration-color: color-mix(in srgb, var(--primary) 28%, transparent);
+  }
+
+  .domain-map {
+    @apply relative min-h-[160px] overflow-hidden rounded-xl bg-gradient-to-br from-background via-muted/70 to-secondary/70;
+  }
+
+  .domain-map-link {
+    @apply absolute h-px bg-border/80;
+    transform-origin: left center;
+  }
+
+  .domain-map-link-a {
+    left: 56px;
+    top: 40px;
+    width: 84px;
+    transform: rotate(10deg);
+  }
+
+  .domain-map-link-b {
+    left: 132px;
+    top: 72px;
+    width: 74px;
+    transform: rotate(-18deg);
+  }
+
+  .domain-map-link-c {
+    left: 70px;
+    top: 104px;
+    width: 124px;
+    transform: rotate(-4deg);
+  }
+
+  .domain-map-node {
+    @apply absolute inline-flex max-w-[112px] items-center rounded-full bg-background/90 px-3 py-1.5 text-[11px] font-medium text-muted-foreground shadow-sm;
+  }
+
+  .domain-map-node-a {
+    left: 18px;
+    top: 20px;
+  }
+
+  .domain-map-node-b {
+    left: 92px;
+    top: 54px;
+    @apply bg-primary/10 text-primary;
+  }
+
+  .domain-map-node-c {
+    right: 18px;
+    top: 24px;
+  }
+
+  .domain-map-node-d {
+    left: 30px;
+    bottom: 18px;
+  }
+}

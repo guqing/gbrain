@@ -1,19 +1,29 @@
 {
   "name": "@guqings/exo",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "description": "Your exocortex. Ingest ChatGPT exports, PDFs, and files into a searchable knowledge base. Hybrid FTS5 + vector search. LLM-compiled knowledge pages. MCP server for Claude Code and Cursor.",
   "type": "module",
   "bin": {
     "exo": "./bin/exo.ts"
   },
+  "workspaces": [
+    "ui"
+  ],
   "scripts": {
     "dev": "bun run src/cli.ts",
-    "build": "bun build --compile --minify src/cli.ts --outfile bin/exo",
-    "test": "bun test"
+    "ui:dev": "bun run scripts/ui-dev.ts",
+    "ui:dev:web": "bun run --cwd ui dev",
+    "ui:generate": "bun run scripts/generate-ui-assets.ts",
+    "ui:build": "bun run --cwd ui build && bun run ui:generate",
+    "build": "bun run ui:build && bun build --compile --minify src/cli.ts --outfile bin/exo",
+    "prepublishOnly": "bun run build",
+    "test": "bun test",
+    "pack:check": "npm pack --dry-run"
   },
   "files": [
     "bin/exo.ts",
     "src/",
+    "src/ui/generated.ts",
     "!src/tests/"
   ],
   "engines": {

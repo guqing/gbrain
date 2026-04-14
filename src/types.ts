@@ -24,7 +24,9 @@ export type PageType =
 
 export interface PageFrontmatter {
   tags?: string[];
+  keywords?: string[];
   type?: PageType;
+  sidebar_title?: string;
   confidence?: number;
   valid_until?: string;
   last_verified?: string;

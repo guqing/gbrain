@@ -28,5 +28,9 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      - run: bun build --compile --minify src/cli.ts --outfile bin/exo
+      - run: bun install --frozen-lockfile --cwd ui
+      - name: Build UI
+        run: bun run ui:build
+      - name: Build binary
+        run: bun build --compile --minify src/cli.ts --outfile bin/exo
       - run: ./bin/exo --version

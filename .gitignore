@@ -4,7 +4,12 @@ node_modules
 # output
 out
 dist
+bin/exo
 *.tgz
+
+# generated build artifacts (do not commit)
+src/ui/generated.ts
+ui/dist/
 
 # code coverage
 coverage
@@ -33,3 +38,4 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # Finder (MacOS) folder config
 .DS_Store
 gbrain/
+.gstack/
