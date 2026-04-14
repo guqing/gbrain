@@ -1023,11 +1023,20 @@ export function App() {
                       <div className="app-markdown">
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
-                          components={{
-                            h1: ({ children }) => <h1 id={slugify(nodeText(children))}>{children}</h1>,
-                            h2: ({ children }) => <h2 id={slugify(nodeText(children))}>{children}</h2>,
-                            h3: ({ children }) => <h3 id={slugify(nodeText(children))}>{children}</h3>,
-                          }}
+                          components={(() => {
+                            const seen = new Map<string, number>();
+                            const headingId = (children: React.ReactNode) => {
+                              const base = slugify(nodeText(children));
+                              const count = seen.get(base) ?? 0;
+                              seen.set(base, count + 1);
+                              return count === 0 ? base : `${base}-${count + 1}`;
+                            };
+                            return {
+                              h1: ({ children }) => <h1 id={headingId(children)}>{children}</h1>,
+                              h2: ({ children }) => <h2 id={headingId(children)}>{children}</h2>,
+                              h3: ({ children }) => <h3 id={headingId(children)}>{children}</h3>,
+                            };
+                          })()}
                         >
                           {renderedMarkdown}
                         </ReactMarkdown>
