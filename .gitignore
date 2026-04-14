@@ -4,6 +4,7 @@ node_modules
 # output
 out
 dist
+bin/exo
 *.tgz
 
 # generated build artifacts (do not commit)
