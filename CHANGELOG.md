@@ -5,6 +5,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.7.0] — 2026-05-28
+
+### Added
+- **Web UI** (`exo ui`): localhost-only web interface for searching and browsing the knowledge base
+- Image display with inline gallery and lightbox viewer
+- Files section redesigned as a media gallery grouped by parent page
+- Dedicated search results view with term highlighting and scope selector
+- Load-more pagination for browse sections (sessions, files, recent)
+- Scroll-to-top button, empty states, and prev/next page navigation
+- TOC (table of contents) sidebar for articles with smooth scroll-to-heading
+- CJK bigram pre-tokenization for Chinese compound search (`feat(fts)`)
+- `sidebar_title` and `keywords` frontmatter fields
+- Release pipeline and `install.sh` for binary distribution
+
+### Changed
+- Web UI refactored from a monolithic `App.tsx` into modular hooks and components for maintainability
+- Heading ID extraction replaced with a proper remark AST pipeline — stable de-duplicated IDs, correct CJK handling
+- Search bar moved to content area with docs-style compact layout
+- Nav tree uses semantic `ul/li` structure
+- Files nav synced with gallery (scroll into view + highlight on click)
+
+### Fixed
+- Content overflow in article view
+- Nav showing only 50 items when sessions had 500+ entries
+- Files section grouping and duplicate display issues
+- All file nav items incorrectly showing as active
+- Duplicate heading IDs between TOC and renderer
+- TOC panel and sidebar scroll independence
+- Overflow clipping in both sidebars
+- Frontmatter stripping for inline and truncated formats
+- Search ranking improvements: MRR 0.771 → 0.917 (BM25 + cross-encoder reranking)
+- FTS Chinese tokenization + LIKE fallback for zero-result queries
+- Slugify preserves CJK and unicode letters
+- ChatGPT importer generates human-readable slugs
+- DB recovery from corrupted `page_fts` on migration
+
+---
+
 ## [0.6.0.0] — 2026-04-11
 
 ### Added
