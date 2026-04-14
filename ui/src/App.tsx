@@ -789,7 +789,7 @@ export function App() {
         <main className="min-w-0">
           {/* ─── Top search bar ─── */}
           <div className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-            <div className="mx-auto flex w-full max-w-3xl flex-col gap-0 px-5 py-3 xl:px-8">
+            <div className="w-full lg:max-w-[696px] lg:mx-auto xl:ml-[max(0px,calc(50vw-348px-18rem))] flex flex-col gap-0 px-5 py-3 xl:px-0">
               <div className="relative flex items-center">
                 <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/70" />
                 <Input
