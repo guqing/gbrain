@@ -2,26 +2,26 @@
 
 :root {
   color-scheme: light;
-  --background: #fbfaf7;
-  --foreground: #171614;
+  --background: #ffffff;
+  --foreground: #0f1117;
   --card: #ffffff;
-  --card-foreground: #171614;
+  --card-foreground: #0f1117;
   --popover: #ffffff;
-  --popover-foreground: #171614;
-  --primary: #2d3646;
-  --primary-foreground: #fbfaf7;
-  --secondary: #f3efe8;
-  --secondary-foreground: #23211f;
-  --muted: #f6f3ef;
-  --muted-foreground: #6d6963;
-  --accent: #ebe6df;
-  --accent-foreground: #23211f;
-  --border: #e7e0d7;
-  --input: #e7e0d7;
-  --ring: #677087;
-  --sidebar: #fdfcf9;
-  --sidebar-foreground: #171614;
-  --sidebar-muted: #7a746d;
+  --popover-foreground: #0f1117;
+  --primary: #1a1d27;
+  --primary-foreground: #ffffff;
+  --secondary: #f4f5f7;
+  --secondary-foreground: #1a1d27;
+  --muted: #f4f5f7;
+  --muted-foreground: #6b7280;
+  --accent: #eef0f3;
+  --accent-foreground: #1a1d27;
+  --border: #f0f1f3;
+  --input: #e5e7eb;
+  --ring: #6366f1;
+  --sidebar: #f9fafb;
+  --sidebar-foreground: #0f1117;
+  --sidebar-muted: #6b7280;
   --radius: 1rem;
 }
 

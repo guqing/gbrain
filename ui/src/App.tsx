@@ -730,8 +730,8 @@ export function App() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="grid min-h-screen xl:grid-cols-[320px_minmax(0,1fr)]">
-        <aside className="overflow-hidden border-b border-border bg-sidebar/95 xl:border-b-0 xl:border-r">
-          <div className="flex h-full min-h-0 flex-col">
+        <aside className="overflow-hidden border-b border-border bg-sidebar/95 xl:sticky xl:top-0 xl:h-screen xl:border-b-0 xl:border-r">
+          <div className="flex h-full min-h-0 flex-col overflow-hidden">
             <div className="px-5 pb-4 pt-6">
               <div className="flex items-center gap-3">
                 <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
