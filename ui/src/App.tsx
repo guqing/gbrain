@@ -686,7 +686,8 @@ export function App() {
     <ul className="space-y-px">
       {nodes.map((node) => {
         if (node.kind === "leaf") {
-          const active = node.item.slug === selectedItemKey || resolveReaderSlug(node.item) === selectedReaderSlug;
+          const readerSlug = resolveReaderSlug(node.item);
+          const active = node.item.slug === selectedItemKey || (readerSlug !== null && readerSlug === selectedReaderSlug);
           return (
             <li key={node.id} className="relative scroll-m-4 first:scroll-m-20">
               <button
