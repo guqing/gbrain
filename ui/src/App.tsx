@@ -789,34 +789,32 @@ export function App() {
         <main className="min-w-0">
           {/* ─── Top search bar ─── */}
           <div className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-            <div className="mx-auto flex w-full max-w-3xl flex-col gap-0 px-5 py-4 xl:px-8">
-              <div className="flex items-center gap-3">
-                <div className="relative flex-1">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 size-4.5 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    className="h-12 rounded-2xl border-border bg-muted/60 pl-11 pr-4 text-base shadow-none placeholder:text-muted-foreground/60 focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-primary/40"
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Search pages, files, ideas…"
-                    ref={searchInputRef}
-                    value={query}
-                  />
-                  {query.trim() ? (
-                    <button
-                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground/60 transition-colors hover:text-foreground"
-                      onClick={() => { setQuery(""); setSearchResultPicked(false); setSelectedItemKey(null); setSelectedReaderSlug(null); }}
-                      type="button"
-                    >
-                      <X className="size-4" />
-                    </button>
-                  ) : (
-                    <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 hidden select-none rounded border bg-background/80 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/60 xl:inline-flex">
-                      ⌘K
-                    </kbd>
-                  )}
-                </div>
+            <div className="mx-auto flex w-full max-w-3xl flex-col gap-0 px-5 py-3 xl:px-8">
+              <div className="relative flex items-center">
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/70" />
+                <Input
+                  className="h-9 rounded-xl border border-border/80 bg-background pl-9 pr-16 text-sm shadow-none ring-0 placeholder:text-muted-foreground/50 hover:border-border focus-visible:border-primary/40 focus-visible:ring-1 focus-visible:ring-primary/30"
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search..."
+                  ref={searchInputRef}
+                  value={query}
+                />
+                {query.trim() ? (
+                  <button
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-0.5 text-muted-foreground/50 transition-colors hover:text-foreground"
+                    onClick={() => { setQuery(""); setSearchResultPicked(false); setSelectedItemKey(null); setSelectedReaderSlug(null); }}
+                    type="button"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                ) : (
+                  <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 hidden select-none items-center rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground/60 xl:flex">
+                    ⌘K
+                  </kbd>
+                )}
               </div>
               {query.trim() ? (
-                <div className="flex flex-wrap gap-1.5 pt-3">
+                <div className="flex flex-wrap gap-1.5 pt-2.5">
                   {(Object.keys(searchScopeLabels) as SearchScope[]).map((scope) => (
                     <button
                       key={scope}
@@ -1070,7 +1068,7 @@ export function App() {
                 </article>
               </div>
 
-              <div className="hidden xl:block shrink-0 w-[18rem] self-start sticky top-20 h-[calc(100vh-5rem)] mr-8">
+              <div className="hidden xl:block shrink-0 w-[18rem] self-start sticky top-[3.75rem] h-[calc(100vh-3.75rem)] mr-8">
                 <div className="overflow-y-auto h-full pl-8 pr-4 py-8">
                   <div className="space-y-6 pb-10 text-sm leading-6">
 
