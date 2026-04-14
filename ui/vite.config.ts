@@ -14,8 +14,13 @@ export default defineConfig({
       configureServer(server) {
         server.middlewares.use("/__exo_ping", (req, res, next) => {
           if (req.method !== "POST") { next(); return; }
+          // Return the number of connected HMR clients so ui-dev.ts can
+          // decide whether to open a new tab or reuse an existing one.
+          const clients = server.ws.clients.size;
           server.ws.send({ type: "custom", event: "exo:focus" });
-          res.writeHead(200, { "content-type": "text/plain" }).end("ok");
+          res
+            .writeHead(200, { "content-type": "application/json" })
+            .end(JSON.stringify({ clients }));
         });
       },
     },

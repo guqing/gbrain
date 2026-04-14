@@ -122,11 +122,24 @@ console.log(`exo ui dev — starting`);
 console.log(`  API: ${apiUrl}  (exo ui server)`);
 console.log(`  Web: ${uiUrl}  (Vite, proxying /api/* → API)`);
 
-// Wait for Vite to be ready before opening the browser so the tab loads immediately.
+// After Vite is ready, wait briefly for any pre-existing browser tabs to
+// reconnect their HMR WebSocket.  If at least one client reconnects we
+// reuse it (via the exo:focus event) instead of opening a new tab.
 if (!args.noOpen) {
   const ready = await waitForPort(args.uiPort);
   if (ready) {
-    tryOpen(uiUrl);
+    // Give the browser ~900 ms to reconnect HMR on a Vite restart.
+    await Bun.sleep(900);
+    const ping = await fetch(`${uiUrl}/__exo_ping`, { method: "POST" })
+      .then((r) => r.json() as Promise<{ clients: number }>)
+      .catch(() => ({ clients: 0 }));
+
+    if (ping.clients > 0) {
+      // An existing tab reconnected — focus it, no new tab needed.
+      console.log(`  (reusing existing tab)`);
+    } else {
+      tryOpen(uiUrl);
+    }
   } else {
     console.warn(`⚠ Vite didn't respond within 15 s — open ${uiUrl} manually`);
   }
