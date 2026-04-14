@@ -11,6 +11,7 @@ import {
   FolderOpen,
   Paperclip,
   Search,
+  X,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -742,42 +743,7 @@ export function App() {
                 </div>
               </div>
 
-              <div className="mt-4 rounded-xl border bg-background/90 p-3 shadow-xs">
-                <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Quick search</span>
-                  <Badge variant="outline">Cmd/Ctrl + K</Badge>
-                </div>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    className="h-11 rounded-lg border-0 bg-muted pl-9 shadow-none focus-visible:ring-2"
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Search pages, files, ideas..."
-                    ref={searchInputRef}
-                    value={query}
-                  />
-                </div>
-              </div>
 
-              {query.trim() ? (
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {(Object.keys(searchScopeLabels) as SearchScope[]).map((scope) => (
-                    <button
-                      key={scope}
-                      className={cn(
-                        "rounded-full px-3 py-1 text-xs font-medium transition-colors",
-                        searchScope === scope
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-                      )}
-                      onClick={() => setSearchScope(scope)}
-                      type="button"
-                    >
-                      {searchScopeLabels[scope]}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
             </div>
 
             <div className="flex-1 overflow-y-auto overflow-x-hidden pb-6">
@@ -823,9 +789,59 @@ export function App() {
         </aside>
 
         <main className="min-w-0">
-          {/* ─── Search results view ─── */}
+          {/* ─── Top search bar ─── */}
+          <div className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+            <div className="mx-auto flex w-full max-w-3xl flex-col gap-0 px-5 py-4 xl:px-8">
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 size-4.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    className="h-12 rounded-2xl border-border bg-muted/60 pl-11 pr-4 text-base shadow-none placeholder:text-muted-foreground/60 focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-primary/40"
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Search pages, files, ideas…"
+                    ref={searchInputRef}
+                    value={query}
+                  />
+                  {query.trim() ? (
+                    <button
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground/60 transition-colors hover:text-foreground"
+                      onClick={() => { setQuery(""); setSearchResultPicked(false); setSelectedItemKey(null); setSelectedReaderSlug(null); }}
+                      type="button"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  ) : (
+                    <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 hidden select-none rounded border bg-background/80 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/60 xl:inline-flex">
+                      ⌘K
+                    </kbd>
+                  )}
+                </div>
+              </div>
+              {query.trim() ? (
+                <div className="flex flex-wrap gap-1.5 pt-3">
+                  {(Object.keys(searchScopeLabels) as SearchScope[]).map((scope) => (
+                    <button
+                      key={scope}
+                      className={cn(
+                        "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                        searchScope === scope
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                      )}
+                      onClick={() => setSearchScope(scope)}
+                      type="button"
+                    >
+                      {searchScopeLabels[scope]}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+
           {query.trim() && !searchResultPicked ? (
-            <ScrollArea className="min-h-screen">
+            <div className="overflow-y-auto">
               <div className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-5 py-8 xl:px-8 xl:py-10">
                 {/* Header */}
                 <div className="mb-4 flex flex-wrap items-baseline gap-3">
@@ -903,7 +919,7 @@ export function App() {
                     </button>
                   ))}
               </div>
-            </ScrollArea>
+            </div>
           ) : (
             /* ─── Browse / reader view ─── */
             <div className="flex min-h-screen overflow-hidden">
