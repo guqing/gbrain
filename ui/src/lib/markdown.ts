@@ -1,33 +1,5 @@
-import type { Heading } from "../types";
-
-function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/\s+/g, "-");
-}
-
-export function extractHeadings(markdown: string): Heading[] {
-  const headings: Heading[] = [];
-  const seen = new Map<string, number>();
-
-  markdown.split("\n").forEach((line) => {
-    const match = /^(#{1,3})\s+(.+)$/.exec(line.trim());
-    if (!match) return;
-    const text = match[2]!.trim();
-    const base = slugify(text);
-    const count = seen.get(base) ?? 0;
-    seen.set(base, count + 1);
-    headings.push({
-      id: count === 0 ? base : `${base}-${count + 1}`,
-      text,
-      level: match[1]!.length,
-    });
-  });
-
-  return headings;
-}
+// extractHeadings is now backed by the remark AST pipeline for accuracy.
+export { extractHeadings } from "./remark";
 
 export function stripFrontmatter(markdown: string): string {
   if (!markdown.startsWith("---")) return markdown;
