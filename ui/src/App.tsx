@@ -370,6 +370,7 @@ export function App() {
   const [searchResultPicked, setSearchResultPicked] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
 
   useEffect(() => {
     const onPopState = () => {
@@ -397,6 +398,7 @@ export function App() {
         searchInputRef.current?.focus();
         searchInputRef.current?.select();
       }
+      if (event.key === "Escape") setLightbox(null);
     };
 
     window.addEventListener("keydown", onKeyDown);
@@ -1033,12 +1035,47 @@ export function App() {
                               h1: ({ children }) => <h1 id={headingId(children)}>{children}</h1>,
                               h2: ({ children }) => <h2 id={headingId(children)}>{children}</h2>,
                               h3: ({ children }) => <h3 id={headingId(children)}>{children}</h3>,
+                              img: ({ src, alt }) => src ? (
+                                <img
+                                  alt={alt ?? ""}
+                                  className="my-4 max-h-[600px] max-w-full cursor-zoom-in rounded-lg border border-border object-contain shadow-sm"
+                                  src={src}
+                                  onClick={() => setLightbox({ src, alt: alt ?? "" })}
+                                />
+                              ) : null,
                             };
                           })()}
                         >
                           {renderedMarkdown}
                         </ReactMarkdown>
                       </div>
+                      {(() => {
+                        const imageFiles = reader.files.filter((f) => f.mime_type.startsWith("image/"));
+                        if (!imageFiles.length) return null;
+                        return (
+                          <div className="space-y-3 border-t pt-6">
+                            <div className="text-sm font-semibold text-muted-foreground">Images</div>
+                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                              {imageFiles.map((file) => (
+                                <button
+                                  key={file.slug}
+                                  className="group overflow-hidden rounded-lg border border-border bg-muted/30 transition-colors hover:border-primary/40"
+                                  type="button"
+                                  onClick={() => setLightbox({ src: file.download_url, alt: file.name })}
+                                >
+                                  <img
+                                    alt={file.name}
+                                    className="h-40 w-full object-cover transition-transform group-hover:scale-[1.02]"
+                                    loading="lazy"
+                                    src={file.download_url}
+                                  />
+                                  <div className="truncate px-2 py-1.5 text-xs text-muted-foreground">{file.name}</div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
                       {(prevNextItems.prev || prevNextItems.next) && (
                         <div className="flex items-stretch justify-between gap-4 border-t pt-6">
                           {prevNextItems.prev ? (
@@ -1143,25 +1180,29 @@ export function App() {
                           </div>
                         ) : null}
 
-                        {reader.files.length ? (
-                          <div className="mt-4 space-y-0.5">
-                            <div className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">
-                              Attachments
+                        {(() => {
+                          const nonImageFiles = reader.files.filter((f) => !f.mime_type.startsWith("image/"));
+                          if (!nonImageFiles.length) return null;
+                          return (
+                            <div className="mt-4 space-y-0.5">
+                              <div className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">
+                                Attachments
+                              </div>
+                              {nonImageFiles.map((file) => (
+                                <a
+                                  key={file.slug}
+                                  className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                  href={file.download_url}
+                                  rel="noreferrer"
+                                  target="_blank"
+                                >
+                                  <span className="truncate">{file.name}</span>
+                                  <ArrowUpRight className="size-3.5 shrink-0" />
+                                </a>
+                              ))}
                             </div>
-                            {reader.files.map((file) => (
-                              <a
-                                key={file.slug}
-                                className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                                href={file.download_url}
-                                rel="noreferrer"
-                                target="_blank"
-                              >
-                                <span className="truncate">{file.name}</span>
-                                <ArrowUpRight className="size-3.5 shrink-0" />
-                              </a>
-                            ))}
-                          </div>
-                        ) : null}
+                          );
+                        })()}
                       </div>
                     ) : null}
 
@@ -1203,6 +1244,34 @@ export function App() {
           )}
         </main>
       </div>
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+            type="button"
+            aria-label="Close"
+            onClick={() => setLightbox(null)}
+          >
+            <X className="size-5" />
+          </button>
+          <img
+            alt={lightbox.alt}
+            className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-2xl"
+            src={lightbox.src}
+            onClick={(e) => e.stopPropagation()}
+          />
+          {lightbox.alt && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-md bg-black/60 px-3 py-1.5 text-sm text-white">
+              {lightbox.alt}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
