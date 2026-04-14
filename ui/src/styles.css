@@ -89,6 +89,8 @@
 @layer components {
   .app-markdown {
     @apply text-[15px] leading-8 text-foreground;
+    overflow-wrap: break-word;
+    word-break: break-word;
   }
 
   .app-markdown h1,

@@ -165,6 +165,8 @@ function buildUrl(section: Section, slug: string | null, query: string, scope: S
 }
 
 function resolveReaderSlug(item: CenterItem): string | null {
+  // Image files show an inline preview instead of loading the parent page
+  if ((item.result_kind === "file" || item.type === "file") && item.mime_type?.startsWith("image/")) return null;
   return item.result_kind === "file" || item.type === "file" ? item.parent_page_slug ?? null : item.slug;
 }
 
@@ -293,7 +295,15 @@ function prettifySegment(segment: string): string {
 }
 
 function treeSegmentsForItem(item: CenterItem, section: Section, query: string): string[] {
-  if (item.type === "file") return [item.title];
+  if (item.type === "file") {
+    if (item.parent_page_slug) {
+      // Group under the last segment of the parent page slug (the page title part)
+      const segments = item.parent_page_slug.split("/").filter(Boolean);
+      const parentLabel = prettifySegment(segments[segments.length - 1] ?? item.parent_page_slug);
+      return [parentLabel, item.title];
+    }
+    return [item.title];
+  }
 
   const source = item.parent_page_slug ?? item.slug;
   let segments = source.split("/").filter(Boolean);
@@ -782,6 +792,16 @@ export function App() {
                     <Badge className="max-w-[120px] truncate" variant="muted">{query.trim() ? searchScopeLabels[searchScope] : sectionLabels[section]}</Badge>
                   </div>
                 <nav className="space-y-1">{renderTreeNodes(tree)}</nav>
+                  {hasMore && !query.trim() && (
+                    <button
+                      className="mt-2 w-full rounded-xl px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                      disabled={loadingMore}
+                      type="button"
+                      onClick={loadMore}
+                    >
+                      {loadingMore ? "Loading…" : `Load more`}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -958,7 +978,7 @@ export function App() {
                       <h2 className="text-4xl font-semibold tracking-tight xl:text-5xl">
                         {reader?.title ?? currentItem?.title ?? "Select a page"}
                       </h2>
-                      {summaryText ? <p className="max-w-3xl text-base leading-8 text-muted-foreground">{summaryText}</p> : null}
+                      {summaryText ? <p className="max-w-3xl break-words text-base leading-8 text-muted-foreground" style={{ overflowWrap: "break-word", wordBreak: "break-word" }}>{summaryText}</p> : null}
                     </div>
                   </div>
 
@@ -1007,6 +1027,22 @@ export function App() {
                   ) : null}
 
                   {!readerError && !loadingReader && !reader ? (
+                    currentItem?.type === "file" && currentItem.mime_type?.startsWith("image/") ? (
+                      <div className="space-y-4">
+                        <div className="overflow-hidden rounded-xl border border-border bg-muted/20">
+                          <img
+                            alt={currentItem.title}
+                            className="mx-auto max-h-[70vh] w-auto object-contain cursor-zoom-in"
+                            src={`/api/file/${currentItem.slug.replace("file:", "")}/raw`}
+                            onClick={() => setLightbox({
+                              src: `/api/file/${currentItem.slug.replace("file:", "")}/raw`,
+                              alt: currentItem.title,
+                            })}
+                          />
+                        </div>
+                        <p className="text-sm text-muted-foreground">{currentItem.title}</p>
+                      </div>
+                    ) : (
                     <Card className="border-dashed bg-background/80">
                       <CardHeader>
                         <CardTitle>Pick a page to start reading</CardTitle>
@@ -1015,6 +1051,7 @@ export function App() {
                         </CardDescription>
                       </CardHeader>
                     </Card>
+                    )
                   ) : null}
 
                   {reader ? (
