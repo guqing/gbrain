@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync, writeFileSync } from "fs";
+import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "fs";
 import { extname, join, relative } from "path";
 
 interface UiAssetRecord {
@@ -73,5 +73,6 @@ export const UI_ENTRY_PATH = "/index.html";
 
 export const UI_ASSETS: Record<string, UiAsset> = ${JSON.stringify(assets, null, 2)};\n`;
 
+mkdirSync(join(root, "src", "ui"), { recursive: true });
 writeFileSync(outputFile, fileBody, "utf-8");
 console.log(`Generated ${relative(root, outputFile)} from ${files.length} UI asset(s).`);
