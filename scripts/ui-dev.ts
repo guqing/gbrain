@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import net from "node:net";
 
 function parseArgs(argv: string[]) {
   const result: {
@@ -38,17 +39,13 @@ function openCommand(url: string): string[] | null {
 }
 
 /** Returns true if something is already accepting TCP connections on the port. */
-async function isPortListening(port: number): Promise<boolean> {
-  try {
-    await fetch(`http://127.0.0.1:${port}`, { signal: AbortSignal.timeout(400) });
-    return true;
-  } catch (err: any) {
-    // ECONNREFUSED / network error → nothing there
-    // Any HTTP-level response (even 4xx/5xx) still means the port is live
-    if (err?.cause?.code === "ECONNREFUSED") return false;
-    if (err?.name === "TimeoutError") return false;
-    return true;
-  }
+function isPortListening(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = net.createConnection({ host: "127.0.0.1", port, timeout: 500 });
+    socket.once("connect", () => { socket.destroy(); resolve(true); });
+    socket.once("error",   () => { socket.destroy(); resolve(false); });
+    socket.once("timeout", () => { socket.destroy(); resolve(false); });
+  });
 }
 
 /** Poll until the port is listening or the timeout (ms) expires. */
