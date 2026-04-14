@@ -72,8 +72,45 @@ exo search "redis rate limit"
 # Hybrid search with AI query expansion (requires embed config)
 exo query "how to prevent API abuse"
 
+# Read a page
+exo get concepts/redis-rate-limiting
+
 # Open the local Web UI
 exo ui
+
+# Wire up to Claude Code / Cursor (one-time)
+exo setup-mcp
+```
+
+---
+
+## Commands
+
+### Core
+
+| Command | Description |
+|---------|-------------|
+| `exo init [path]` | Create `brain.db` (default: `~/.exo/brain.db`) |
+| `exo get <slug>` | Read a page as markdown |
+| `exo put <slug>` | Write or update a page (stdin or `--file`) |
+| `exo delete <slug>` | Delete a page |
+| `exo list` | List pages (`--type`, `--tag`, `--limit`) |
+| `exo stats` | Brain statistics (page counts, DB size) |
+| `exo health` | Brain health metrics |
+| `exo config` | View and set configuration |
+
+### Search
+
+| Command | Description |
+|---------|-------------|
+| `exo search <query>` | FTS5 keyword search (`--type`, `--limit`) |
+| `exo query <question>` | Hybrid search: FTS5 + vector RRF + LLM query expansion |
+
+### Web UI
+
+| Command | Description |
+|---------|-------------|
+| `exo ui` | Start the local web UI (`--port`, `--no-open`) |
 
 ### AI Ingestion Pipeline
 
@@ -145,9 +182,26 @@ exo reads `~/.exo/config.toml`. Use `exo config` to view and `exo config set <ke
 [db]
 path = "~/.exo/brain.db"
 
+[embed]
+base_url = "https://api.openai.com/v1"
+api_key  = "sk-..."
+model    = "text-embedding-3-large"
+
+[compile]
+base_url = "https://api.openai.com/v1"
+api_key  = "sk-..."
+model    = "gpt-4o"
+
+[vision]
+base_url = "https://api.openai.com/v1"
+api_key  = "sk-..."
+model    = "gpt-4o"
+
 [ui]
 port = 7499
+```
 
+Any OpenAI-compatible provider works (Vercel AI Gateway, Azure OpenAI, Ollama, etc.).
 
 ### DB path resolution
 
