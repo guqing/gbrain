@@ -25,6 +25,12 @@ When writing compiled_truth, PRESERVE:
 - The actual solution, not just a description of the category ("use outline not box-shadow")
 Avoid abstracting away actionable details into generic category descriptions.
 
+Frontmatter fields to include in compiled_truth YAML:
+- title: full descriptive title
+- sidebar_title: SHORT version of the title for sidebar navigation (≤30 chars). Only include if the full title is longer than 30 characters. Must be concise and scannable.
+- keywords: list of 3-8 key terms for this page (e.g. ["sqlite", "fts5", "full-text search"])
+- type: page type
+
 Return ONLY valid JSON matching this schema (no markdown, no extra text):
 { "action": "create"|"update"|"noise", "slug": string|null, "title": string|null, "compiled_truth": string, "timeline_entry": string|null, "reasoning": string }`;
 

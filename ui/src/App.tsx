@@ -29,6 +29,7 @@ type SearchScope = "all" | "pages" | "sessions" | "files";
 type CenterItem = {
   slug: string;
   title: string;
+  sidebar_title?: string;
   type: string;
   updated_at: string;
   has_files: boolean;
@@ -65,11 +66,13 @@ type UISummary = {
 type ReaderPayload = {
   slug: string;
   title: string;
+  sidebar_title?: string;
   markdown: string;
   metadata: {
     type: string;
     updated_at: string;
     tags?: string[];
+    keywords?: string[];
     has_files: boolean;
     confidence?: number | null;
     last_verified?: string | null;
@@ -302,8 +305,8 @@ function treeSegmentsForItem(item: CenterItem, section: Section, query: string):
     segments = segments.slice(1);
   }
 
-  if (segments.length <= 1) return [item.title];
-  return [...segments.slice(0, -1).map(prettifySegment), item.title];
+  if (segments.length <= 1) return [item.sidebar_title ?? item.title];
+  return [...segments.slice(0, -1).map(prettifySegment), item.sidebar_title ?? item.title];
 }
 
 function buildTree(items: CenterItem[], section: Section, query: string): TreeNode[] {
@@ -1106,6 +1109,19 @@ export function App() {
                                   {tag}
                                 </Badge>
                               ))}
+                            </div>
+                          ) : null}
+
+                          {reader.metadata.keywords?.length ? (
+                            <div className="space-y-1.5">
+                              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Keywords</div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {reader.metadata.keywords.map((kw) => (
+                                  <Badge key={kw} variant="outline" className="text-xs">
+                                    {kw}
+                                  </Badge>
+                                ))}
+                              </div>
                             </div>
                           ) : null}
 

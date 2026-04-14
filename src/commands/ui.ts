@@ -193,6 +193,7 @@ export default defineCommand({
           }).map((page) => ({
             slug: page.slug,
             title: page.title,
+            sidebar_title: typeof page.frontmatter.sidebar_title === "string" ? page.frontmatter.sidebar_title : undefined,
             type: page.type,
             updated_at: page.updated_at,
             has_files: engine.listFiles(page.slug).length > 0,
@@ -271,12 +272,14 @@ export default defineCommand({
           return Response.json({
             ...page,
             title: page.title,
+            sidebar_title: typeof page.frontmatter.sidebar_title === "string" ? page.frontmatter.sidebar_title : undefined,
             markdown: serializePage(page),
             content: serializePage(page),
             metadata: {
               type: page.type,
               updated_at: page.updated_at,
               tags: Array.isArray(page.frontmatter.tags) ? page.frontmatter.tags : undefined,
+              keywords: Array.isArray(page.frontmatter.keywords) ? page.frontmatter.keywords : undefined,
               has_files: files.length > 0,
               confidence,
               last_verified: lastVerified,
