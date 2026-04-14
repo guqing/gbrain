@@ -611,7 +611,7 @@ export function App() {
   }, [copyState]);
 
   useEffect(() => {
-    if (readerScrollRef.current) readerScrollRef.current.scrollTop = 0;
+    if (readerScrollRef.current) window.scrollTo({ top: 0 });
   }, [selectedReaderSlug]);
 
   useEffect(() => {
@@ -634,7 +634,7 @@ export function App() {
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
         if (visible[0]?.target.id) setActiveHeading(visible[0].target.id);
       },
-      { root: readerScrollRef.current, rootMargin: "-10% 0px -60% 0px", threshold: [0, 1] }
+      { root: null, rootMargin: "-10% 0px -60% 0px", threshold: [0, 1] }
     );
 
     elements.forEach((element) => observer.observe(element));
@@ -920,9 +920,9 @@ export function App() {
             </div>
           ) : (
             /* ─── Browse / reader view ─── */
-            <div className="flex h-[calc(100vh-5rem)] overflow-hidden">
-              <div ref={readerScrollRef} className="flex-1 overflow-y-auto min-w-0">
-                <article className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-8 xl:px-8 xl:py-10">
+            <div className="flex min-h-0">
+              <div ref={readerScrollRef} className="flex-1 min-w-0">
+                <article className="w-full lg:max-w-[696px] lg:mx-auto xl:ml-[max(0px,calc(50vw-348px-18rem))] flex flex-col gap-6 px-5 py-8 xl:px-0 xl:py-10">
                   {/* Back to search results */}
                   {query.trim() && searchResultPicked ? (
                     <button
@@ -1061,8 +1061,8 @@ export function App() {
                 </article>
               </div>
 
-              <div className="hidden xl:flex flex-col shrink-0 w-[272px] overflow-y-auto border-l border-border/50">
-                <div className="pl-8 pr-4 py-8">
+              <div className="hidden xl:block shrink-0 w-[18rem] self-start sticky top-20 h-[calc(100vh-5rem)] mr-8">
+                <div className="overflow-y-auto h-full pl-8 pr-4 py-8">
                   <div className="space-y-6 pb-10 text-sm leading-6">
 
                     {/* On this page */}
