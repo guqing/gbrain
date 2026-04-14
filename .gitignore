@@ -6,6 +6,10 @@ out
 dist
 *.tgz
 
+# generated build artifacts (do not commit)
+src/ui/generated.ts
+ui/dist/
+
 # code coverage
 coverage
 *.lcov

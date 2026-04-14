@@ -16,12 +16,14 @@
     "ui:generate": "bun run scripts/generate-ui-assets.ts",
     "ui:build": "bun run --cwd ui build && bun run ui:generate",
     "build": "bun run ui:build && bun build --compile --minify src/cli.ts --outfile bin/exo",
+    "prepublishOnly": "bun run build",
     "test": "bun test",
     "pack:check": "npm pack --dry-run"
   },
   "files": [
     "bin/exo.ts",
     "src/",
+    "src/ui/generated.ts",
     "!src/tests/"
   ],
   "engines": {
