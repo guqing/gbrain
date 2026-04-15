@@ -30,6 +30,7 @@ export const COMMAND_HELP: Record<string, string> = {
   embed:     "Usage: exo embed [<slug>] [--all]\n\nGenerate text embeddings via configured provider. Set embed.api_key with: exo config set embed.api_key <key>.",
   sync:      "Usage: exo sync\n\nEmbed all pages that are missing embeddings.",
   harvest:   "Usage: exo harvest [--source claude|copilot|codex|all] [--direct] [--dry-run]\n\nHarvest learnings from AI session logs into inbox (or directly with --direct).",
+  ingest:    "Usage: exo ingest <dir> [--dry-run] [--no-describe]\n\nIngest a directory into the inbox. Text files (.md/.txt) go directly; PDFs, images, and audio are attached and extracted via AI.",
   capture:   "Usage: exo capture <text>\n\nCapture a quick note to the inbox for later compilation.",
   inbox:     "Usage: exo inbox\n\nShow queued inbox items (count, token estimate, oldest date).",
   compile:   "Usage: exo compile [--limit N] [--yes] [--interactive]\n\nProcess inbox items via LLM into structured knowledge pages.",
@@ -81,6 +82,7 @@ const main = defineCommand({
     sync:        () => import("./commands/sync.ts").then((m) => m.default),
     // AI ingest
     harvest:     () => import("./commands/harvest.ts").then((m) => m.default),
+    ingest:      () => import("./commands/ingest.ts").then((m) => m.default),
     capture:     () => import("./commands/capture.ts").then((m) => m.default),
     inbox:       () => import("./commands/inbox.ts").then((m) => m.default),
     compile:     () => import("./commands/compile/index.ts").then((m) => m.default),

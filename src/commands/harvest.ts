@@ -336,9 +336,9 @@ function harvestClaude(
   opts: { project?: string; dryRun: boolean; limit: number; useInbox: boolean }
 ): { created: number; updated: number } {
   if (!existsSync(claudeRoot)) {
-    console.error(`✗ Claude projects directory not found: ${claudeRoot}`);
-    console.error("  Run Claude Code first to generate session logs.");
-    process.exit(1);
+    console.log(`  ⚠  Directory not found: ${claudeRoot}`);
+    console.log(`  Tip: run Claude Code first, or use --dir to specify a custom path.`);
+    return { created: 0, updated: 0 };
   }
 
   type SessionFile = { projectDir: string; file: string; path: string };
@@ -355,8 +355,8 @@ function harvestClaude(
       } catch { /* skip */ }
     }
   } catch (e) {
-    console.error(`✗ Could not read ${claudeRoot}: ${e}`);
-    process.exit(1);
+    console.log(`  ⚠  Could not read ${claudeRoot}: ${e}`);
+    return { created: 0, updated: 0 };
   }
 
   if (sessions.length === 0) { console.log("No Claude session logs found."); return { created: 0, updated: 0 }; }
@@ -444,7 +444,7 @@ export default defineCommand({
   meta: { name: "harvest", description: "Harvest learnings from AI session logs (Claude Code, Copilot CLI, Codex)" },
   args: {
     db:       { type: "string",  description: "Path to brain.db" },
-    source:   { type: "string",  description: "Session source: claude (default), copilot, codex, all" },
+    source:   { type: "string",  description: "Session source: all (default), claude, copilot, codex" },
     dir:      { type: "string",  description: "Override default session directory" },
     project:  { type: "string",  description: "Filter to a specific project name" },
     "dry-run":{ type: "boolean", description: "Preview what would be created without writing", default: false },
@@ -454,7 +454,7 @@ export default defineCommand({
   run({ args }) {
     const engine = new SqliteEngine(openDb(resolveDbPath(args.db)));
     const home = homedir();
-    const source = (args.source ?? "claude") as string;
+    const source = (args.source ?? "all") as string;
     const dryRun = args["dry-run"] as boolean;
     const direct = args.direct as boolean;
     const useInbox = !direct;
@@ -470,17 +470,25 @@ export default defineCommand({
       const root = args.dir ?? join(home, ".copilot", "session-state");
       console.log(`\n── Copilot CLI checkpoints ────────────────────────────`);
       console.log(`  Source: ${root}`);
-      console.log(`  No LLM required — checkpoints are pre-structured summaries.\n`);
-      const { created, updated } = harvestCopilot(engine, root, { project: args.project, dryRun, limit, useInbox });
-      totalCreated += created; totalUpdated += updated;
+      if (!existsSync(root)) {
+        console.log(`  ⚠  Directory not found, skipping.`);
+      } else {
+        console.log(`  No LLM required — checkpoints are pre-structured summaries.\n`);
+        const { created, updated } = harvestCopilot(engine, root, { project: args.project, dryRun, limit, useInbox });
+        totalCreated += created; totalUpdated += updated;
+      }
     }
 
     if (source === "codex" || source === "all") {
       const root = args.dir ?? join(home, ".codex", "sessions");
       console.log(`\n── Codex sessions ─────────────────────────────────────`);
       console.log(`  Source: ${root}`);
-      const { created, updated } = harvestCodex(engine, root, { dryRun, limit, useInbox });
-      totalCreated += created; totalUpdated += updated;
+      if (!existsSync(root)) {
+        console.log(`  ⚠  Directory not found, skipping.`);
+      } else {
+        const { created, updated } = harvestCodex(engine, root, { dryRun, limit, useInbox });
+        totalCreated += created; totalUpdated += updated;
+      }
     }
 
     if (source === "claude" || source === "all") {
