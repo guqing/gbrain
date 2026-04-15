@@ -91,27 +91,29 @@ flowchart TD
     subgraph Sources["Data Sources"]
         A[Markdown files / dirs]
         B[Quick notes / text]
-        C[Claude Code / Copilot / Codex\nsession logs]
+        C["Claude Code / Copilot / Codex session logs"]
         D[ChatGPT export JSON]
-        E[PDF / image / audio / DOCX]
+        E["Mixed directory (MD + PDF + images)"]
+        F[PDF / image / audio / DOCX]
     end
 
     subgraph Ingest["Ingestion"]
-        I1["exo import\nexo sync"]
+        I1["exo import / exo sync"]
         I2["exo capture"]
         I3["exo harvest"]
-        I4["exo digest\nexo import-chatgpt"]
-        I5["exo attach\nexo describe"]
+        I4["exo digest / exo import-chatgpt"]
+        I5["exo ingest"]
+        I6["exo attach / exo describe"]
     end
 
     subgraph Store["Brain — brain.db"]
-        INBOX["📥 inbox\n(staging area)"]
-        CONCEPT["🧠 concept / learning / project …\n(knowledge pages)"]
-        FILES["📎 files\n(binary attachments)"]
+        INBOX["📥 inbox (staging area)"]
+        CONCEPT["🧠 concept / learning / project (knowledge pages)"]
+        FILES["📎 files (binary attachments)"]
     end
 
     subgraph Pipeline["AI Pipeline"]
-        COMPILE["exo compile\n(LLM: create / update / discard)"]
+        COMPILE["exo compile (LLM: create / update / discard)"]
     end
 
     subgraph Out["Access"]
@@ -125,7 +127,8 @@ flowchart TD
     B --> I2 --> INBOX
     C --> I3 --> INBOX
     D --> I4 --> INBOX
-    E --> I5 --> FILES --> CONCEPT
+    E --> I5 --> INBOX
+    F --> I6 --> FILES --> CONCEPT
 
     INBOX --> COMPILE --> CONCEPT
 
@@ -140,7 +143,7 @@ flowchart TD
 ```
 
 > **Key insight:** `import` and `sync` write directly to knowledge pages (no LLM needed).
-> `capture`, `harvest`, and `digest` land in the **inbox** staging area first.
+> `capture`, `harvest`, `digest`, and `ingest` land in the **inbox** staging area first.
 > Run `exo compile` to let the LLM distill inbox items into your knowledge graph — it
 > merges related items, creates new concept pages, and discards noise.
 
@@ -180,6 +183,7 @@ flowchart TD
 | `exo inbox` | View the inbox queue (items waiting to be compiled) |
 | `exo compile` | Run LLM pipeline: inbox items → structured knowledge pages |
 | `exo harvest` | Harvest learnings from Claude Code / Copilot / Codex session logs |
+| `exo ingest <dir>` | Ingest a mixed directory into inbox (`.md`/`.txt` direct; PDF/image/audio auto-extracted) |
 | `exo digest <file>` | Import conversations from a ChatGPT export JSON |
 | `exo import-chatgpt <dir>` | Import a full ChatGPT export directory (conversations + images) |
 
