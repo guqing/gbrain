@@ -84,6 +84,66 @@ exo setup-mcp
 
 ---
 
+## Data flow
+
+```mermaid
+flowchart TD
+    subgraph Sources["Data Sources"]
+        A[Markdown files / dirs]
+        B[Quick notes / text]
+        C[Claude Code / Copilot / Codex\nsession logs]
+        D[ChatGPT export JSON]
+        E[PDF / image / audio / DOCX]
+    end
+
+    subgraph Ingest["Ingestion"]
+        I1["exo import\nexo sync"]
+        I2["exo capture"]
+        I3["exo harvest"]
+        I4["exo digest\nexo import-chatgpt"]
+        I5["exo attach\nexo describe"]
+    end
+
+    subgraph Store["Brain — brain.db"]
+        INBOX["📥 inbox\n(staging area)"]
+        CONCEPT["🧠 concept / learning / project …\n(knowledge pages)"]
+        FILES["📎 files\n(binary attachments)"]
+    end
+
+    subgraph Pipeline["AI Pipeline"]
+        COMPILE["exo compile\n(LLM: create / update / discard)"]
+    end
+
+    subgraph Out["Access"]
+        SEARCH["exo search / query"]
+        UI["exo ui  (web browser)"]
+        MCP["exo serve  (MCP / Claude Code)"]
+        EXPORT["exo export"]
+    end
+
+    A --> I1 --> CONCEPT
+    B --> I2 --> INBOX
+    C --> I3 --> INBOX
+    D --> I4 --> INBOX
+    E --> I5 --> FILES --> CONCEPT
+
+    INBOX --> COMPILE --> CONCEPT
+
+    CONCEPT --> SEARCH
+    CONCEPT --> UI
+    CONCEPT --> MCP
+    CONCEPT --> EXPORT
+
+    style INBOX fill:#fef3c7,stroke:#d97706
+    style CONCEPT fill:#d1fae5,stroke:#059669
+    style COMPILE fill:#ede9fe,stroke:#7c3aed
+```
+
+> **Key insight:** `import` and `sync` write directly to knowledge pages (no LLM needed).
+> `capture`, `harvest`, and `digest` land in the **inbox** staging area first.
+> Run `exo compile` to let the LLM distill inbox items into your knowledge graph — it
+> merges related items, creates new concept pages, and discards noise.
+
 ## Commands
 
 ### Core
