@@ -179,13 +179,13 @@ export default defineCommand({
     if (binaryFiles.length > 0) {
       console.log(`\n── Binary files → attach + extract → inbox ────────────`);
     }
-    mkdirSync(filesDir, { recursive: true });
+    if (!dryRun) {
+      mkdirSync(filesDir, { recursive: true });
+    }
 
     for (const file of binaryFiles) {
       const ext = extname(file.path);
       const mime = getMimeType(file.path)!;
-      const fileContent = readFileSync(file.path);
-      const sha256 = fileHash(fileContent);
       const title = basename(file.relPath, ext);
 
       if (dryRun) {
@@ -193,6 +193,9 @@ export default defineCommand({
         console.log(`[DRY-RUN] Would ${action}: ${file.relPath}  (${mime})`);
         continue;
       }
+
+      const fileContent = readFileSync(file.path);
+      const sha256 = fileHash(fileContent);
 
       // Create a transient inbox page to hang the file from
       const pageSlug = deconflictSlug(
